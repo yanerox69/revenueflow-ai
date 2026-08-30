@@ -1,10 +1,42 @@
-# RevenueFlow — Fundación multipaís
+# RevenueFlow
 
-Recepción con IA por WhatsApp para negocios de servicios en Latinoamérica.
+### The reception desk that actually listens.
+
+Voice-first WhatsApp reception for Latin American small businesses.
+A customer sends a voice note; the agent transcribes it, understands it, checks
+the real calendar and **books the appointment** — in under ten seconds.
+
+**Live:** [revenueflow-ai-yanero.vercel.app](https://revenueflow-ai-yanero.vercel.app)
+· demo login `owner.ve@demo.local` / `demo-Passw0rd!`
+
+> Built for the **AssemblyAI Voice Agent Hackathon**.
+> Speech: Universal-3.5 Pro. Understanding: LLM Gateway. One API key.
+
+---
+
+## Why this exists
+
+In Latin America WhatsApp isn't a channel — it's the phone. Small businesses
+run entirely inside it, and **their customers don't type, they talk.** Every
+CRM on the market renders a voice note as a grey box saying "audio message",
+and a human still has to listen, understand, open a calendar and reply.
+
+So nothing happens until someone is free. And nobody is ever free.
+
+## The decision the product rests on
+
+> **The model decides what the customer wants.
+> The system decides what's allowed to happen.**
+
+- It **cannot invent a service** — it only picks from the tenant's catalog.
+- It **cannot invent a date** — it returns a weekday; the system computes the
+  real date in the business's timezone.
+- It **cannot invent availability** — the slot comes from the database.
+- Complaint, payment or doubt → **escalates to a human and stops.**
+
 Países activos: **Venezuela** y **Brasil**.
 
-Este repositorio contiene el **Prompt 01: Fundación**. No incluye inbox, CRM,
-agente IA, pagos ni panel admin — eso llega en los prompts siguientes.
+---
 
 ---
 
