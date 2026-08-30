@@ -48,11 +48,26 @@ console.log(`Audio    ${file}\n`);
 
 const started = Date.now();
 
+/** WhatsApp entrega .ogg (Opus); el navegador, .webm. */
+const MIME: Record<string, string> = {
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/opus',
+  '.webm': 'audio/webm',
+  '.m4a': 'audio/mp4',
+  '.mp3': 'audio/mpeg',
+};
+
+const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
+const contentType = MIME[ext] ?? 'application/octet-stream';
+console.log(`Formato   ${ext} → ${contentType}`);
+
 const ingest = await ingestVoiceNote({
   tenantId: tenant.id,
   fromPhone: pack.samplePhone,
   audio: readFileSync(file),
-  contentType: 'audio/wav',
+  contentType,
   externalId: `prueba:${Date.now()}`,
   channel: 'web',
 });

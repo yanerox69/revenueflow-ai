@@ -49,6 +49,22 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const raf = useRef<number>(0);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Sube un audio ya grabado. Cubre tres casos reales:
+   * micrófono que no funciona, nota grabada en el teléfono por WhatsApp
+   * (que es el formato de producción), y quien prueba desde un equipo sin
+   * micrófono.
+   */
+  function pickFile(file: File) {
+    setError(undefined);
+    setTranscript(null);
+    setAgent(null);
+    setStage('TRANSCRIBING');
+    setPhase('processing');
+    void upload(file);
+  }
 
   async function start() {
     setError(undefined);
@@ -108,8 +124,9 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
 
   /** Lee la respuesta NDJSON evento a evento. */
   async function upload(blob: Blob) {
+    const nombre = blob instanceof File ? blob.name : 'nota.webm';
     const form = new FormData();
-    form.append('audio', blob, 'nota.webm');
+    form.append('audio', blob, nombre);
     form.append('from', phone);
 
     let res: Response;
@@ -201,7 +218,40 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
         )}
 
         {phase === 'recording' && <LevelMeter level={level} />}
+
+        {phase !== 'recording' && (
+          <>
+            <span className="text-sm text-muted-foreground">o</span>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+              className="cursor-pointer text-sm font-medium text-primary
+                         underline-offset-4 hover:underline
+                         disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              sube un audio de WhatsApp
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="audio/*,.ogg,.opus,.m4a"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) pickFile(f);
+                e.target.value = ''; // permite volver a elegir el mismo archivo
+              }}
+            />
+          </>
+        )}
       </div>
+
+      {phase === 'recording' && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Si las barras no se mueven, tu micrófono no está capturando.
+        </p>
+      )}
 
       <div aria-live="polite" className="mt-5 space-y-4">
         {phase === 'error' && <FormError message={error} />}
