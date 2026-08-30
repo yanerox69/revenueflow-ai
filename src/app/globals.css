@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   RevenueFlow · tokens
+   Azul confianza + acento cálido. Claro por defecto, oscuro soportado.
+   Ningún color se declara solo dentro de un @media: siempre hay valor base.
+------------------------------------------------------------------- */
+:root {
+  --background:        #f8fafc;
+  --foreground:        #1e293b;
+  --card:              #ffffff;
+  --card-foreground:   #1e293b;
+  --primary:           #2563eb;
+  --on-primary:        #ffffff;
+  --accent:            #ea580c;
+  --muted:             #e9eff8;
+  --muted-foreground:  #475569;
+  --border:            #e2e8f0;
+  --destructive:       #dc2626;
+  --on-destructive:    #ffffff;
+  --ring:              #2563eb;
+
+  --glass-bg:     rgb(255 255 255 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.6);
+  --shadow-card:  0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.06);
+  --grid-line:    rgb(37 99 235 / 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background:       #0b1220;
+    --foreground:       #e2e8f0;
+    --card:             #131c2e;
+    --card-foreground:  #e2e8f0;
+    --primary:          #3b82f6;
+    --on-primary:       #06152e;
+    --accent:           #fb923c;
+    --muted:            #1b2537;
+    --muted-foreground: #94a3b8;
+    --border:           #223047;
+    --destructive:      #f87171;
+    --on-destructive:   #1a0505;
+    --ring:             #60a5fa;
+
+    --glass-bg:     rgb(19 28 46 / 0.72);
+    --glass-border: rgb(255 255 255 / 0.08);
+    --shadow-card:  0 1px 2px rgb(0 0 0 / 0.4), 0 8px 28px rgb(0 0 0 / 0.35);
+    --grid-line:    rgb(96 165 250 / 0.08);
+  }
+}
+
+@theme inline {
+  --color-background:       var(--background);
+  --color-foreground:       var(--foreground);
+  --color-card:             var(--card);
+  --color-card-foreground:  var(--card-foreground);
+  --color-primary:          var(--primary);
+  --color-on-primary:       var(--on-primary);
+  --color-accent:           var(--accent);
+  --color-muted:            var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border:           var(--border);
+  --color-destructive:      var(--destructive);
+  --color-on-destructive:   var(--on-destructive);
+  --color-ring:             var(--ring);
+  --font-sans:              var(--font-jakarta), system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Retícula sutil de fondo para el panel de marca. */
+.rf-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.rf-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+}
+
+/* Foco siempre visible: nunca se elimina el anillo. */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
