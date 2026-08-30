@@ -1,18 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
-import { login, type AuthState } from '@/lib/actions/auth';
-import { AuthShell, Field, Button, FormError } from '@/components/ui';
+import { Suspense, useActionState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { login, signInWithGoogle, type AuthState } from '@/lib/actions/auth';
+import { AuthShell, Field, Button, FormError, GoogleButton, Divider } from '@/components/ui';
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState<AuthState, FormData>(login, {});
-
   return (
     <AuthShell
       headline="Ningún mensaje sin responder."
       sub="Tu recepción por WhatsApp atiende, entiende los audios y agenda sola — mientras tú trabajas."
     >
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
+    </AuthShell>
+  );
+}
+
+function LoginForm() {
+  const [state, action, pending] = useActionState<AuthState, FormData>(login, {});
+
+  // Los fallos del acceso con Google vuelven por la URL.
+  const urlError = useSearchParams().get('error') ?? undefined;
+
+  return (
+    <>
       <h1 className="text-2xl font-bold tracking-tight">Entrar</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         ¿Aún no tienes cuenta?{' '}
@@ -24,8 +38,16 @@ export default function LoginPage() {
         </Link>
       </p>
 
-      <form action={action} className="mt-8 space-y-5">
-        <FormError message={state.error} />
+      <form action={signInWithGoogle} className="mt-8">
+        <GoogleButton label="Continuar con Google" />
+      </form>
+
+      <div className="my-5">
+        <Divider label="o con tu correo" />
+      </div>
+
+      <form action={action} className="space-y-5">
+        <FormError message={state.error ?? urlError} />
 
         <Field
           label="Correo"
@@ -49,6 +71,6 @@ export default function LoginPage() {
           {pending ? 'Entrando…' : 'Entrar'}
         </Button>
       </form>
-    </AuthShell>
+    </>
   );
 }

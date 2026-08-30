@@ -2,17 +2,20 @@
 
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
-import { register, type AuthState } from '@/lib/actions/auth';
-import { AuthShell, Field, Button, FormError } from '@/components/ui';
-import { listCountryOptions } from '@/lib/country';
-
-const COUNTRIES = listCountryOptions();
+import { register, signInWithGoogle, type AuthState } from '@/lib/actions/auth';
+import {
+  AuthShell,
+  Field,
+  Button,
+  FormError,
+  FormNotice,
+  GoogleButton,
+  Divider,
+} from '@/components/ui';
+import { CountryPicker, COUNTRIES } from '@/components/country-picker';
 
 export default function RegistroPage() {
-  const [state, action, pending] = useActionState<AuthState, FormData>(
-    register,
-    {},
-  );
+  const [state, action, pending] = useActionState<AuthState, FormData>(register, {});
   const [country, setCountry] = useState(COUNTRIES[0].code);
   const selected = COUNTRIES.find((c) => c.code === country)!;
 
@@ -32,8 +35,17 @@ export default function RegistroPage() {
         </Link>
       </p>
 
-      <form action={action} className="mt-8 space-y-5">
+      <form action={signInWithGoogle} className="mt-8">
+        <GoogleButton label="Registrarme con Google" />
+      </form>
+
+      <div className="my-5">
+        <Divider label="o con tu correo" />
+      </div>
+
+      <form action={action} className="space-y-5">
         <FormError message={state.error} />
+        <FormNotice message={state.notice} />
 
         <Field
           label="Tu nombre"
@@ -49,39 +61,11 @@ export default function RegistroPage() {
           error={state.fieldErrors?.businessName}
         />
 
-        {/* El selector no conoce países: los lee del registro de packs. */}
-        <Field label="País" name="country" error={state.fieldErrors?.country}>
-          <div className="grid grid-cols-2 gap-2.5">
-            {COUNTRIES.map((c) => {
-              const active = c.code === country;
-              return (
-                <label
-                  key={c.code}
-                  className={`flex cursor-pointer flex-col gap-0.5 rounded-lg border
-                              px-3.5 py-3 transition-colors duration-150
-                              ${
-                                active
-                                  ? 'border-primary bg-primary/8 ring-1 ring-primary'
-                                  : 'border-border hover:border-primary/40'
-                              }`}
-                >
-                  <input
-                    type="radio"
-                    name="country"
-                    value={c.code}
-                    checked={active}
-                    onChange={() => setCountry(c.code)}
-                    className="sr-only"
-                  />
-                  <span className="text-sm font-semibold">{c.displayName}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.currency} · {c.taxIdKind}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </Field>
+        <CountryPicker
+          value={country}
+          onChange={setCountry}
+          error={state.fieldErrors?.country}
+        />
 
         <Field
           label={`${selected.taxIdKind} del negocio`}
