@@ -214,38 +214,38 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
   );
 }
 
-/** Avance real: cada paso se marca cuando el servidor lo confirma. */
+/**
+ * Avance real: cada paso se marca cuando el servidor lo confirma.
+ *
+ * Solo gira el paso EN CURSO. Si giran todos, se lee como "tres cosas
+ * pendientes" en vez de "voy por el primero".
+ */
 function Steps({ stage }: { stage: Stage }) {
   const current = STAGES.indexOf(stage);
+  const firstPending = STEPS.findIndex((s) => current < STAGES.indexOf(s.reachedAt));
 
   return (
     <ol className="space-y-2">
-      {STEPS.map((step) => {
+      {STEPS.map((step, i) => {
         const done = current >= STAGES.indexOf(step.reachedAt);
-        const active = !done;
+        const running = i === firstPending;
 
         return (
           <li key={step.label} className="flex items-center gap-2.5 text-sm">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-              {done ? (
-                <svg viewBox="0 0 20 20" className="h-5 w-5 text-accent" aria-hidden="true">
-                  <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <path
-                    d="M6 10.2l2.6 2.6L14 7.4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <Spinner active={active} />
-              )}
+              {done ? <Check /> : <Spinner running={running} />}
             </span>
-            <span className={done ? 'text-card-foreground' : 'text-muted-foreground'}>
+            <span
+              className={
+                done
+                  ? 'text-card-foreground'
+                  : running
+                    ? 'text-card-foreground'
+                    : 'text-muted-foreground/50'
+              }
+            >
               {step.label}
-              {active && '…'}
+              {running && '…'}
             </span>
           </li>
         );
@@ -254,18 +254,45 @@ function Steps({ stage }: { stage: Stage }) {
   );
 }
 
-function Spinner({ active }: { active: boolean }) {
+function Check() {
   return (
-    <svg viewBox="0 0 20 20" className="h-5 w-5 text-muted-foreground" aria-hidden="true">
-      <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.6" opacity="0.25" />
-      {active && (
+    <svg viewBox="0 0 20 20" className="h-5 w-5 text-accent" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M6 10.2l2.6 2.6L14 7.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function Spinner({ running }: { running: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className={`h-5 w-5 ${running ? 'text-primary motion-safe:animate-spin' : 'text-muted-foreground/30'}`}
+      aria-hidden="true"
+    >
+      <circle
+        cx="10"
+        cy="10"
+        r="8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        opacity={running ? 0.25 : 1}
+      />
+      {running && (
         <path
           d="M10 2a8 8 0 0 1 8 8"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
           strokeLinecap="round"
-          className="origin-center motion-safe:animate-spin"
         />
       )}
     </svg>
