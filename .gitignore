@@ -41,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# El CLI de Vercel vuelve a añadir `.vercel` y `.env*` al final cada vez que
+# enlaza. Si esas líneas reaparecen aquí abajo, anulan el `!.env.example` de
+# arriba (en git gana la última regla que coincide). Bórralas: ya están.
