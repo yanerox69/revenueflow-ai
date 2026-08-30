@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ingestVoiceNote } from '@/lib/ingest/voice-note';
 import { handleVoiceNote } from '@/lib/agent/handle-voice-note';
@@ -11,9 +10,10 @@ const MAX_BYTES = 16 * 1024 * 1024; // igual que el límite de WhatsApp
 /**
  * Entrada por navegador: el mismo pipeline que el webhook de WhatsApp.
  *
- * Existe para que el demo nunca dependa de la aprobación de Meta. Quien mira
- * la pantalla graba su voz y ve el resultado; en producción el audio llega
- * por WhatsApp y recorre exactamente este mismo camino.
+ * Responde en STREAMING (NDJSON, un evento por línea). El proceso completo
+ * tarda entre 8 y 25 segundos —transcripción más modelo— y dejar al usuario
+ * mirando un spinner todo ese rato hace pensar que se colgó. Así la
+ * transcripción aparece en cuanto está lista y la cita llega después.
  */
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -21,9 +21,7 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
-  }
+  if (!user) return fail('No autenticado.', 401);
 
   const { data: profile } = await supabase
     .from('users')
@@ -31,74 +29,106 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .single();
 
-  if (!profile) {
-    return NextResponse.json({ error: 'Tu cuenta no tiene negocio.' }, { status: 403 });
-  }
+  if (!profile) return fail('Tu cuenta no tiene negocio.', 403);
 
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return NextResponse.json({ error: 'Se esperaba multipart/form-data.' }, { status: 400 });
+    return fail('Se esperaba multipart/form-data.', 400);
   }
 
   const audio = form.get('audio');
   const fromPhone = String(form.get('from') ?? '').trim();
 
-  if (!(audio instanceof File)) {
-    return NextResponse.json({ error: 'Falta el archivo de audio.' }, { status: 400 });
-  }
-  if (audio.size === 0) {
-    return NextResponse.json({ error: 'El audio está vacío.' }, { status: 400 });
-  }
-  if (audio.size > MAX_BYTES) {
-    return NextResponse.json({ error: 'El audio supera los 16 MB.' }, { status: 413 });
-  }
-  if (!fromPhone) {
-    return NextResponse.json({ error: 'Falta el teléfono del remitente.' }, { status: 400 });
-  }
+  if (!(audio instanceof File)) return fail('Falta el archivo de audio.', 400);
+  if (audio.size === 0) return fail('El audio está vacío.', 400);
+  if (audio.size > MAX_BYTES) return fail('El audio supera los 16 MB.', 413);
+  if (!fromPhone) return fail('Falta el teléfono del remitente.', 400);
 
-  try {
-    const result = await ingestVoiceNote({
-      tenantId: profile.tenant_id,
-      fromPhone,
-      audio: await audio.arrayBuffer(),
-      contentType: audio.type || 'audio/webm',
-      externalId: `web:${crypto.randomUUID()}`,
-      channel: 'web',
-    });
+  const bytes = await audio.arrayBuffer();
+  const contentType = audio.type || 'audio/webm';
+  const tenantId = profile.tenant_id;
 
-    // Transcribir no basta: el agente tiene que actuar.
-    let agent = null;
-    if (result.transcription) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) =>
+        controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'));
+
       try {
-        agent = await handleVoiceNote({
-          tenantId: profile.tenant_id,
-          contactId: result.contactId,
-          conversationId: result.conversationId,
-          messageId: result.messageId,
-          transcription: result.transcription,
+        send({ stage: 'TRANSCRIBING' });
+
+        const ingest = await ingestVoiceNote({
+          tenantId,
+          fromPhone,
+          audio: bytes,
+          contentType,
+          externalId: `web:${crypto.randomUUID()}`,
+          channel: 'web',
         });
+
+        send({
+          stage: 'TRANSCRIBED',
+          transcription: ingest.transcription,
+          detectedLanguage: ingest.detectedLanguage,
+          confidence: ingest.confidence,
+          durationSeconds: ingest.durationSeconds,
+          languageMismatch: ingest.languageMismatch,
+        });
+
+        if (!ingest.transcription) {
+          send({ stage: 'DONE', agent: null });
+          controller.close();
+          return;
+        }
+
+        send({ stage: 'UNDERSTANDING' });
+
+        const agent = await handleVoiceNote(
+          {
+            tenantId,
+            contactId: ingest.contactId,
+            conversationId: ingest.conversationId,
+            messageId: ingest.messageId,
+            transcription: ingest.transcription,
+          },
+          { onIntent: () => send({ stage: 'SCHEDULING' }) },
+        );
+
+        send({ stage: 'DONE', agent });
       } catch (e) {
-        // Si el agente falla, la transcripción igual se devuelve: el negocio
-        // ve lo que dijo el cliente aunque no se haya agendado nada.
-        console.error('[voice] el agente falló:', (e as Error).message);
+        const message = (e as Error).message;
+        console.error('[voice] fallo de ingesta:', message);
+
+        // El teléfono inválido es error del usuario, no del servidor.
+        send({
+          stage: 'ERROR',
+          error: message.includes('inválido')
+            ? message
+            : 'No se pudo procesar el audio.',
+        });
+      } finally {
+        controller.close();
       }
-    }
+    },
+  });
 
-    return NextResponse.json({ ...result, agent });
-  } catch (e) {
-    const message = (e as Error).message;
+  return new Response(stream, {
+    headers: {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      // Sin esto, un proxy puede acumular la respuesta y anular el streaming.
+      'cache-control': 'no-cache, no-transform',
+      'x-accel-buffering': 'no',
+    },
+  });
+}
 
-    // El teléfono inválido es error del usuario, no del servidor.
-    if (message.includes('inválido')) {
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-
-    console.error('[voice] fallo de ingesta:', message);
-    return NextResponse.json(
-      { error: 'No se pudo procesar el audio.' },
-      { status: 502 },
-    );
-  }
+/** Los errores previos al stream salen como JSON normal. */
+function fail(error: string, status: number): Response {
+  return new Response(JSON.stringify({ stage: 'ERROR', error }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }

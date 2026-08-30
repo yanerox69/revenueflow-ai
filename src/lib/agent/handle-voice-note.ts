@@ -42,6 +42,15 @@ export interface HandleInput {
   transcription: string;
 }
 
+export interface HandleOptions {
+  /**
+   * Se llama en cuanto el modelo termina de interpretar, antes de buscar
+   * disponibilidad. Permite mostrarle avance al usuario en vez de dejarlo
+   * mirando un spinner durante todo el proceso.
+   */
+  onIntent?: (intent: ExtractedIntent) => void;
+}
+
 /**
  * De la transcripción a la cita, y de vuelta al cliente.
  *
@@ -49,7 +58,10 @@ export interface HandleInput {
  * hacer: el servicio sale del catálogo, la fecha se calcula aquí y el hueco
  * se valida contra la disponibilidad real.
  */
-export async function handleVoiceNote(input: HandleInput): Promise<AgentResult> {
+export async function handleVoiceNote(
+  input: HandleInput,
+  options: HandleOptions = {},
+): Promise<AgentResult> {
   const db = createSupabaseAdminClient();
 
   const { data: tenant } = await db
@@ -78,6 +90,8 @@ export async function handleVoiceNote(input: HandleInput): Promise<AgentResult> 
       `${local.year}-${pad(local.month)}-${pad(local.day)} ` +
       `${pad(local.hour)}:${pad(local.minute)} (${pack.timezone})`,
   });
+
+  options.onIntent?.(intent);
 
   const leadId = await upsertLead(db, input, intent, catalog);
   const outcome = await decide(db, input, tenant.id, tenant.locale, pack, intent, catalog, leadId, now);

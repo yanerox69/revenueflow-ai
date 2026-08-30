@@ -3,7 +3,17 @@
 import { useRef, useState } from 'react';
 import { Button, Field, FormError } from '@/components/ui';
 
-type Phase = 'idle' | 'recording' | 'uploading' | 'done' | 'error';
+type Phase = 'idle' | 'recording' | 'processing' | 'done' | 'error';
+
+/** Etapas que emite el servidor, en orden. */
+const STAGES = ['TRANSCRIBING', 'TRANSCRIBED', 'UNDERSTANDING', 'SCHEDULING', 'DONE'] as const;
+type Stage = (typeof STAGES)[number];
+
+const STEPS: Array<{ label: string; reachedAt: Stage }> = [
+  { label: 'Transcribiendo el audio', reachedAt: 'TRANSCRIBED' },
+  { label: 'Entendiendo lo que pide', reachedAt: 'SCHEDULING' },
+  { label: 'Buscando disponibilidad y agendando', reachedAt: 'DONE' },
+];
 
 type Outcome =
   | { kind: 'BOOKED'; startsAt: string; label: string; serviceName: string }
@@ -17,20 +27,21 @@ interface Agent {
   reply: { text: string; delivery: 'SENT' | 'SKIPPED' | 'FAILED'; deliveryReason?: string };
 }
 
-interface Result {
+interface Transcript {
   transcription: string | null;
   detectedLanguage: string | null;
   confidence: number | null;
   durationSeconds: number | null;
   languageMismatch: boolean;
-  agent: Agent | null;
 }
 
 export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [stage, setStage] = useState<Stage>('TRANSCRIBING');
   const [seconds, setSeconds] = useState(0);
   const [level, setLevel] = useState(0);
-  const [result, setResult] = useState<Result | null>(null);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [agent, setAgent] = useState<Agent | null>(null);
   const [error, setError] = useState<string>();
   const [phone, setPhone] = useState(samplePhone);
 
@@ -38,11 +49,11 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const raf = useRef<number>(0);
-  const audioCtx = useRef<AudioContext | null>(null);
 
   async function start() {
     setError(undefined);
-    setResult(null);
+    setTranscript(null);
+    setAgent(null);
 
     let stream: MediaStream;
     try {
@@ -55,7 +66,6 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
 
     // Medidor de nivel: sin esto no se sabe si está grabando de verdad.
     const ctx = new AudioContext();
-    audioCtx.current = ctx;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
     ctx.createMediaStreamSource(stream).connect(analyser);
@@ -92,32 +102,74 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
     if (timer.current) clearInterval(timer.current);
     recorder.current?.stop();
     setLevel(0);
-    setPhase('uploading');
+    setStage('TRANSCRIBING');
+    setPhase('processing');
   }
 
+  /** Lee la respuesta NDJSON evento a evento. */
   async function upload(blob: Blob) {
     const form = new FormData();
     form.append('audio', blob, 'nota.webm');
     form.append('from', phone);
 
+    let res: Response;
     try {
-      const res = await fetch('/api/voice', { method: 'POST', body: form });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? 'No se pudo procesar el audio.');
-        setPhase('error');
-        return;
-      }
-      setResult(data);
-      setPhase('done');
+      res = await fetch('/api/voice', { method: 'POST', body: form });
     } catch {
       setError('Se perdió la conexión al enviar el audio.');
       setPhase('error');
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => ({ error: 'No se pudo procesar el audio.' }));
+      setError(body.error ?? 'No se pudo procesar el audio.');
+      setPhase('error');
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? ''; // la última puede venir cortada
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(line);
+        } catch {
+          continue;
+        }
+
+        const next = event.stage as Stage | 'ERROR';
+
+        if (next === 'ERROR') {
+          setError(String(event.error ?? 'No se pudo procesar el audio.'));
+          setPhase('error');
+          return;
+        }
+
+        setStage(next);
+
+        if (next === 'TRANSCRIBED') setTranscript(event as unknown as Transcript);
+        if (next === 'DONE') {
+          setAgent((event.agent as Agent) ?? null);
+          setPhase('done');
+        }
+      }
     }
   }
 
-  const busy = phase === 'uploading';
+  const busy = phase === 'processing';
 
   return (
     <section className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
@@ -144,31 +196,84 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
           </Button>
         ) : (
           <Button onClick={start} disabled={busy} className="w-auto px-5">
-            <MicIcon /> {busy ? 'Transcribiendo…' : 'Grabar nota de voz'}
+            <MicIcon /> {busy ? 'Procesando…' : 'Grabar nota de voz'}
           </Button>
         )}
 
         {phase === 'recording' && <LevelMeter level={level} />}
       </div>
 
-      <div aria-live="polite" className="mt-5">
+      <div aria-live="polite" className="mt-5 space-y-4">
         {phase === 'error' && <FormError message={error} />}
 
-        {busy && (
-          <div className="space-y-2">
-            <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-          </div>
-        )}
-
-        {phase === 'done' && result && <Transcript result={result} />}
+        {(busy || phase === 'done') && <Steps stage={stage} />}
+        {transcript && <TranscriptCard t={transcript} />}
+        {phase === 'done' && agent && <AgentOutcome agent={agent} />}
       </div>
     </section>
   );
 }
 
-function Transcript({ result }: { result: Result }) {
-  if (!result.transcription) {
+/** Avance real: cada paso se marca cuando el servidor lo confirma. */
+function Steps({ stage }: { stage: Stage }) {
+  const current = STAGES.indexOf(stage);
+
+  return (
+    <ol className="space-y-2">
+      {STEPS.map((step) => {
+        const done = current >= STAGES.indexOf(step.reachedAt);
+        const active = !done;
+
+        return (
+          <li key={step.label} className="flex items-center gap-2.5 text-sm">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              {done ? (
+                <svg viewBox="0 0 20 20" className="h-5 w-5 text-accent" aria-hidden="true">
+                  <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path
+                    d="M6 10.2l2.6 2.6L14 7.4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <Spinner active={active} />
+              )}
+            </span>
+            <span className={done ? 'text-card-foreground' : 'text-muted-foreground'}>
+              {step.label}
+              {active && '…'}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function Spinner({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5 text-muted-foreground" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.6" opacity="0.25" />
+      {active && (
+        <path
+          d="M10 2a8 8 0 0 1 8 8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          className="origin-center motion-safe:animate-spin"
+        />
+      )}
+    </svg>
+  );
+}
+
+function TranscriptCard({ t }: { t: Transcript }) {
+  if (!t.transcription) {
     return (
       <p className="text-sm text-muted-foreground">
         No se detectó voz en el audio. Intenta hablar más cerca del micrófono.
@@ -181,28 +286,20 @@ function Transcript({ result }: { result: Result }) {
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Transcripción
       </p>
-      <p className="mt-2 text-[15px] leading-relaxed text-card-foreground">
-        “{result.transcription}”
-      </p>
+      <p className="mt-2 text-[15px] leading-relaxed text-card-foreground">“{t.transcription}”</p>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-        {result.detectedLanguage && <Chip>Idioma: {result.detectedLanguage}</Chip>}
-        {result.confidence != null && (
-          <Chip>Confianza: {Math.round(result.confidence * 100)}%</Chip>
-        )}
-        {result.durationSeconds != null && (
-          <Chip>{result.durationSeconds.toFixed(1)} s de audio</Chip>
-        )}
+        {t.detectedLanguage && <Chip>Idioma: {t.detectedLanguage}</Chip>}
+        {t.confidence != null && <Chip>Confianza: {Math.round(t.confidence * 100)}%</Chip>}
+        {t.durationSeconds != null && <Chip>{t.durationSeconds.toFixed(1)} s de audio</Chip>}
       </div>
 
-      {result.languageMismatch && (
+      {t.languageMismatch && (
         <p className="mt-3 text-xs text-accent">
           El idioma detectado no coincide con el del negocio — el agente
           responderá en el idioma del cliente.
         </p>
       )}
-
-      {result.agent && <AgentOutcome agent={result.agent} />}
     </div>
   );
 }
@@ -214,7 +311,7 @@ function AgentOutcome({ agent }: { agent: Agent }) {
   if (outcome.kind === 'BOOKED') {
     return (
       <>
-        <div className="mt-4 rounded-lg border border-accent/40 bg-accent/8 p-4">
+        <div className="rounded-lg border border-accent/40 bg-accent/8 p-4">
           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-accent">
             <CheckIcon /> Cita agendada
           </p>
@@ -243,7 +340,7 @@ function AgentOutcome({ agent }: { agent: Agent }) {
 
   return (
     <div
-      className={`mt-4 rounded-lg border p-4 ${
+      className={`rounded-lg border p-4 ${
         escalated ? 'border-accent/40 bg-accent/8' : 'border-border bg-muted/50'
       }`}
     >
@@ -275,21 +372,6 @@ function ReplyBubble({ reply }: { reply: Agent['reply'] }) {
       </div>
       <p className="mt-1.5 text-xs text-muted-foreground">{nota[reply.delivery]}</p>
     </div>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M5 8.2l2.1 2.1L11 6.4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -326,12 +408,7 @@ function MicIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" aria-hidden="true">
       <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
-      <path
-        d="M5 11a7 7 0 0 0 14 0M12 18v3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -340,6 +417,21 @@ function StopIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true">
       <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M5 8.2l2.1 2.1L11 6.4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
