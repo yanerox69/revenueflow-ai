@@ -42,11 +42,23 @@ const SCHEMA = {
       },
       intent: { type: 'string', enum: ['AGENDAR', 'PRECIO', 'INFO', 'CANCELAR', 'OTRO'] },
       urgency: { type: 'string', enum: ['LOW', 'NORMAL', 'HIGH', 'EMERGENCY'] },
+      // A propósito NO es un número.
+      // Pedirle a un modelo pequeño que traduzca "jueves" a 4 falla: en
+      // producción devolvió TUESDAY para "el jueves". Un símbolo lo acierta;
+      // la conversión a índice la hace el sistema.
       weekday: {
-        type: ['integer', 'null'],
-        minimum: 0,
-        maximum: 6,
-        description: '0=domingo, 1=lunes … 6=sábado. null si no menciona día.',
+        type: 'string',
+        enum: [
+          'MONDAY',
+          'TUESDAY',
+          'WEDNESDAY',
+          'THURSDAY',
+          'FRIDAY',
+          'SATURDAY',
+          'SUNDAY',
+          'NONE',
+        ],
+        description: 'Día que pidió el cliente. NONE si no mencionó ninguno.',
       },
       relative_day: {
         type: 'string',
@@ -81,6 +93,12 @@ REGLAS INNEGOCIABLES:
   corresponde con claridad, devuelve null. NUNCA inventes un id.
 - NO devuelvas fechas ni horas concretas. Solo el día de la semana (weekday)
   y la franja (period). El sistema calcula la fecha real.
+- weekday se responde con el nombre en inglés del día que dijo el cliente:
+  lunes=MONDAY, martes=TUESDAY, miércoles=WEDNESDAY, jueves=THURSDAY,
+  viernes=FRIDAY, sábado=SATURDAY, domingo=SUNDAY.
+  En portugués: segunda=MONDAY, terça=TUESDAY, quarta=WEDNESDAY,
+  quinta=THURSDAY, sexta=FRIDAY, sábado=SATURDAY, domingo=SUNDAY.
+  Si no mencionó ningún día, responde NONE.
 - NO inventes precios, promociones, disponibilidad ni políticas.
 - needs_human = true si hay una queja, un reclamo, un tema de dinero o pagos,
   un asunto médico delicado, o si simplemente no entiendes qué pide.
@@ -135,11 +153,25 @@ export async function extractIntent(input: ExtractIntentInput): Promise<Extracte
  * escala a un humano. Un cliente esperando en WhatsApp merece que alguien lo
  * atienda, no un error 500.
  */
+export const WEEKDAY_INDEX: Record<string, number> = {
+  SUNDAY: 0,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+};
+
 const IntentSchema = z.object({
   service_id: z.string().nullable().catch(null),
   intent: z.enum(['AGENDAR', 'PRECIO', 'INFO', 'CANCELAR', 'OTRO']).catch('OTRO'),
   urgency: z.enum(['LOW', 'NORMAL', 'HIGH', 'EMERGENCY']).catch('NORMAL'),
-  weekday: z.number().int().min(0).max(6).nullable().catch(null),
+  // El modelo manda un símbolo; aquí se traduce a índice.
+  weekday: z
+    .union([z.string(), z.number(), z.null()])
+    .transform(toWeekdayIndex)
+    .catch(null),
   relative_day: z
     .enum(['TODAY', 'TOMORROW', 'THIS_WEEK', 'NEXT_WEEK', 'NONE'])
     .catch('NONE'),
@@ -197,3 +229,18 @@ export function sanitizeIntent(
 }
 
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
+
+/**
+ * Acepta el símbolo ('THURSDAY') y, por compatibilidad, un índice numérico.
+ * Cualquier otra cosa es "no dijo día".
+ */
+export function toWeekdayIndex(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value >= 0 && value <= 6 ? value : null;
+  }
+  if (typeof value === 'string') {
+    const key = value.trim().toUpperCase();
+    return key in WEEKDAY_INDEX ? WEEKDAY_INDEX[key] : null;
+  }
+  return null;
+}

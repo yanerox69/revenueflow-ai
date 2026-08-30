@@ -8,7 +8,12 @@ import {
   describeSlot,
   type AvailabilityRule,
 } from '@/lib/agent/scheduling';
-import { sanitizeIntent, parseIntent, type ExtractedIntent } from '@/lib/agent/intent';
+import {
+  sanitizeIntent,
+  parseIntent,
+  toWeekdayIndex,
+  type ExtractedIntent,
+} from '@/lib/agent/intent';
 import { composeReply, endSentence } from '@/lib/agent/reply';
 import { getPack } from '@/lib/country';
 import {
@@ -209,6 +214,62 @@ describe('Test 15 · El agente no puede inventar un servicio', () => {
 
   it('descarta un weekday fuera de rango', () => {
     expect(sanitizeIntent({ ...base, weekday: 9 }, services).weekday).toBeNull();
+  });
+});
+
+describe('Test 18 · El día se pide como símbolo, no como número', () => {
+  // En producción el modelo devolvió TUESDAY para "el jueves" cuando se le
+  // pedía un índice. Traducir nombre->número es trabajo del sistema.
+  it('traduce los nombres de día a índice', () => {
+    expect(toWeekdayIndex('THURSDAY')).toBe(4);
+    expect(toWeekdayIndex('SUNDAY')).toBe(0);
+    expect(toWeekdayIndex('saturday')).toBe(6);
+  });
+
+  it('trata NONE y valores desconocidos como "no dijo día"', () => {
+    expect(toWeekdayIndex('NONE')).toBeNull();
+    expect(toWeekdayIndex('JUEVES')).toBeNull();
+    expect(toWeekdayIndex(null)).toBeNull();
+  });
+
+  it('sigue aceptando un índice numérico', () => {
+    expect(toWeekdayIndex(4)).toBe(4);
+    expect(toWeekdayIndex(9)).toBeNull();
+  });
+
+  it('parseIntent convierte el símbolo del modelo a índice', () => {
+    const parsed = parseIntent({
+      service_id: 'svc-1',
+      intent: 'AGENDAR',
+      urgency: 'NORMAL',
+      weekday: 'THURSDAY',
+      relative_day: 'NONE',
+      period: 'AFTERNOON',
+      summary: 'Quiere limpieza el jueves.',
+      needs_human: false,
+      confidence: 0.9,
+    });
+
+    expect(parsed.weekday).toBe(4);
+    expect(parsed.needs_human).toBe(false);
+  });
+
+  it('y un jueves pedido cae en jueves, no en martes', () => {
+    const parsed = parseIntent({
+      service_id: 'svc-1',
+      intent: 'AGENDAR',
+      urgency: 'NORMAL',
+      weekday: 'THURSDAY',
+      relative_day: 'NONE',
+      period: 'AFTERNOON',
+      summary: '',
+      needs_human: false,
+      confidence: 0.9,
+    });
+
+    const target = resolveTargetDay(NOW, CARACAS, parsed.weekday, 'NONE');
+    expect(target.weekday).toBe(4);
+    expect(target.day).toBe(3); // jueves 3 de septiembre
   });
 });
 
