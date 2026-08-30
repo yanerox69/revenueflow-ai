@@ -2,7 +2,15 @@
 
 Solo las líneas que dices. Lo que va entre `[ ]` es acción, no se lee.
 
-Narración en **inglés**, demo en **español**. Objetivo: **4:30**.
+Objetivo: **4:30**. Habla despacio.
+
+> **Hay dos versiones**: la narración en inglés (abajo) y la misma en español
+> ([VERSIÓN-ES](#versión-en-español), al final del archivo).
+>
+> Si narras en español, **pon subtítulos en inglés**. El jurado de lablab es
+> internacional y no quieres que se pierdan el argumento.
+
+Narración en **inglés**, demo en **español**.
 
 > Habla despacio. La tentación es correr. Un video de 4:30 pausado se entiende;
 > uno de 5:00 atropellado, no.
