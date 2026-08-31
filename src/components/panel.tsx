@@ -1,4 +1,5 @@
 import type { CountryPack } from '@/lib/country';
+import { cerrarCita } from '@/lib/actions/appointments';
 
 export interface CitaProxima {
   id: string;
@@ -6,6 +7,7 @@ export interface CitaProxima {
   status: string;
   created_by_ai: boolean;
   reminder_sent_at: string | null;
+  confirmed_at: string | null;
   servicio: string | null;
   contacto: string | null;
   telefono: string | null;
@@ -115,14 +117,109 @@ export function ListaCitas({
 
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               {c.created_by_ai && <Etiqueta tono="acento">Agendada por IA</Etiqueta>}
-              <Etiqueta tono={c.reminder_sent_at ? 'ok' : 'neutro'}>
-                {c.reminder_sent_at ? 'Recordatorio enviado' : 'Recordatorio pendiente'}
-              </Etiqueta>
+
+              {/* Lo que el negocio necesita saber de un vistazo: quién dijo
+                  que viene. Sin esto, mandar el recordatorio no sirve de nada. */}
+              {c.confirmed_at ? (
+                <Etiqueta tono="ok">Confirmada por el cliente</Etiqueta>
+              ) : (
+                <Etiqueta tono="neutro">
+                  {c.reminder_sent_at ? 'Recordatorio enviado · sin respuesta' : 'Sin recordatorio aún'}
+                </Etiqueta>
+              )}
             </div>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * Citas que ya pasaron y siguen abiertas.
+ *
+ * El sistema no sabe si la persona vino; solo el negocio lo sabe. Aquí las
+ * cierra, y de ahí sale la tasa de asistencia real.
+ */
+export function ListaPorCerrar({
+  citas,
+  pack,
+  locale,
+}: {
+  citas: CitaProxima[];
+  pack: CountryPack;
+  locale: string;
+}) {
+  if (!citas.length) {
+    return <Vacio>No hay citas pendientes de cerrar.</Vacio>;
+  }
+
+  return (
+    <ul className="divide-y divide-border">
+      {citas.map((c) => {
+        const cuando = new Intl.DateTimeFormat(locale, {
+          timeZone: pack.timezone,
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).format(new Date(c.starts_at));
+
+        return (
+          <li key={c.id} className="px-5 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold text-card-foreground">
+                  {c.servicio ?? 'Cita'}
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {c.contacto ?? c.telefono ?? 'Sin contacto'}
+                </p>
+                <p className="mt-1.5 text-sm capitalize text-muted-foreground">{cuando}</p>
+              </div>
+              {c.confirmed_at && <Etiqueta tono="ok">Había confirmado</Etiqueta>}
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <BotonCerrar id={c.id} estado="COMPLETED" texto="Sí vino" tono="ok" />
+              <BotonCerrar id={c.id} estado="NO_SHOW" texto="No vino" tono="neutro" />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function BotonCerrar({
+  id,
+  estado,
+  texto,
+  tono,
+}: {
+  id: string;
+  estado: 'COMPLETED' | 'NO_SHOW';
+  texto: string;
+  tono: 'ok' | 'neutro';
+}) {
+  return (
+    <form action={cerrarCita}>
+      <input type="hidden" name="appointmentId" value={id} />
+      <input type="hidden" name="estado" value={estado} />
+      <button
+        type="submit"
+        className={`cursor-pointer rounded-lg border px-3.5 py-1.5 text-sm font-medium
+                    transition-colors duration-150 ${
+                      tono === 'ok'
+                        ? 'border-primary/40 text-primary hover:bg-primary/8'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    }`}
+      >
+        {texto}
+      </button>
+    </form>
   );
 }
 

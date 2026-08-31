@@ -8,6 +8,7 @@ import {
   Stat,
   Seccion,
   ListaCitas,
+  ListaPorCerrar,
   ListaConversaciones,
   type CitaProxima,
   type ConversacionReciente,
@@ -56,7 +57,7 @@ export default async function PanelPage() {
     supabase
       .from('appointments')
       .select(
-        'id, starts_at, status, created_by_ai, reminder_sent_at, services(name), contacts(name, phone_e164)',
+        'id, starts_at, status, created_by_ai, reminder_sent_at, confirmed_at, services(name), contacts(name, phone_e164)',
       )
       .gte('starts_at', ahora)
       .not('status', 'eq', 'CANCELLED')
@@ -73,16 +74,31 @@ export default async function PanelPage() {
       .eq('created_by_ai', true),
   ]);
 
-  const citas: CitaProxima[] = (citasRaw ?? []).map((c) => ({
-    id: c.id,
-    starts_at: c.starts_at,
-    status: c.status,
-    created_by_ai: c.created_by_ai,
-    reminder_sent_at: c.reminder_sent_at,
+  // Citas ya pasadas que siguen abiertas: el negocio tiene que cerrarlas.
+  const { data: porCerrarRaw } = await supabase
+    .from('appointments')
+    .select(
+      'id, starts_at, status, created_by_ai, reminder_sent_at, confirmed_at, services(name), contacts(name, phone_e164)',
+    )
+    .lt('ends_at', ahora)
+    .in('status', ['SCHEDULED', 'CONFIRMED'])
+    .order('starts_at', { ascending: false })
+    .limit(8);
+
+  const aCita = (c: Record<string, unknown>): CitaProxima => ({
+    id: c.id as string,
+    starts_at: c.starts_at as string,
+    status: c.status as string,
+    created_by_ai: c.created_by_ai as boolean,
+    reminder_sent_at: (c.reminder_sent_at as string | null) ?? null,
+    confirmed_at: (c.confirmed_at as string | null) ?? null,
     servicio: (c.services as { name?: string } | null)?.name ?? null,
     contacto: (c.contacts as { name?: string } | null)?.name ?? null,
     telefono: (c.contacts as { phone_e164?: string } | null)?.phone_e164 ?? null,
-  }));
+  });
+
+  const citas: CitaProxima[] = (citasRaw ?? []).map(aCita);
+  const porCerrar: CitaProxima[] = (porCerrarRaw ?? []).map(aCita);
 
   // El último mensaje de cada conversación, en una sola consulta.
   interface FilaMensaje {
@@ -185,6 +201,14 @@ export default async function PanelPage() {
         <div className="mt-6">
           <VoiceRecorder samplePhone={pack.samplePhone} />
         </div>
+
+        {porCerrar.length > 0 && (
+          <div className="mt-6">
+            <Seccion titulo="Pendientes de cerrar" cuenta={porCerrar.length}>
+              <ListaPorCerrar citas={porCerrar} pack={pack} locale={tenant.locale} />
+            </Seccion>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <Seccion titulo="Próximas citas" cuenta={citas.length}>
