@@ -20,16 +20,126 @@ export interface IncomingVoiceNote {
   channel?: string;
 }
 
+export interface IncomingText {
+  tenantId: string;
+  fromPhone: string;
+  text: string;
+  externalId: string;
+  senderName?: string;
+  channel?: string;
+}
+
 export interface IngestResult {
   duplicate: boolean;
   messageId: string;
   conversationId: string;
   contactId: string;
+  /**
+   * El texto que leerá el agente. Viene de la transcripción si era audio,
+   * o tal cual si el cliente escribió.
+   */
   transcription: string | null;
   detectedLanguage: string | null;
   confidence: number | null;
   durationSeconds: number | null;
   languageMismatch: boolean;
+}
+
+/**
+ * Recibe un mensaje escrito.
+ *
+ * Comparte contacto y conversación con las notas de voz: para el agente y
+ * para el CRM, un cliente que escribe y uno que habla son el mismo cliente
+ * en el mismo hilo. Lo único que cambia es que aquí no hay nada que
+ * transcribir, así que no cuesta un crédito.
+ */
+export async function ingestTextMessage(msg: IncomingText): Promise<IngestResult> {
+  const db = createSupabaseAdminClient();
+
+  const { data: tenant, error: tenantError } = await db
+    .from('tenants')
+    .select('id, country_code')
+    .eq('id', msg.tenantId)
+    .single();
+
+  if (tenantError || !tenant) throw new Error(`Tenant desconocido: ${msg.tenantId}`);
+
+  const pack = getPack(tenant.country_code);
+  const phone = pack.normalizePhone(msg.fromPhone);
+
+  const { data: existing } = await db
+    .from('messages')
+    .select('id, conversation_id, body')
+    .eq('tenant_id', tenant.id)
+    .eq('external_id', msg.externalId)
+    .maybeSingle();
+
+  if (existing) {
+    const { data: conv } = await db
+      .from('conversations')
+      .select('contact_id')
+      .eq('id', existing.conversation_id)
+      .single();
+
+    return {
+      duplicate: true,
+      messageId: existing.id,
+      conversationId: existing.conversation_id,
+      contactId: conv?.contact_id ?? '',
+      transcription: existing.body,
+      detectedLanguage: null,
+      confidence: null,
+      durationSeconds: null,
+      languageMismatch: false,
+    };
+  }
+
+  const contactId = await upsertContact(db, tenant.id, phone, pack.locale, msg.senderName);
+  const conversationId = await openConversation(
+    db, tenant.id, contactId, msg.channel ?? 'whatsapp',
+  );
+
+  const texto = msg.text.trim();
+
+  const { data: message, error } = await db
+    .from('messages')
+    .insert({
+      tenant_id: tenant.id,
+      conversation_id: conversationId,
+      direction: 'IN',
+      external_id: msg.externalId,
+      body: texto,
+    })
+    .select('id')
+    .single();
+
+  if (error || !message) {
+    throw new Error(`No se pudo registrar el mensaje: ${error?.message}`);
+  }
+
+  await db
+    .from('conversations')
+    .update({ last_message_at: new Date().toISOString() })
+    .eq('id', conversationId);
+
+  await db.from('usage_events').insert({
+    tenant_id: tenant.id,
+    kind: 'text_message',
+    quantity: 1,
+    unit: 'message',
+  });
+
+  return {
+    duplicate: false,
+    messageId: message.id,
+    conversationId,
+    contactId,
+    transcription: texto || null,
+    detectedLanguage: null,
+    confidence: null,
+    durationSeconds: null,
+    languageMismatch: false,
+  };
 }
 
 /**

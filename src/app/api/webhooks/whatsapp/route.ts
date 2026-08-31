@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { ingestVoiceNote } from '@/lib/ingest/voice-note';
+import { ingestVoiceNote, ingestTextMessage } from '@/lib/ingest/voice-note';
 import { handleVoiceNote } from '@/lib/agent/handle-voice-note';
 import { verificarLimites } from '@/lib/limits';
 
@@ -80,7 +80,12 @@ async function processPayload(payload: WhatsAppPayload) {
       }
 
       for (const message of value.messages ?? []) {
-        if (message.type !== 'audio' || !message.audio?.id) continue;
+        const esAudio = message.type === 'audio' && Boolean(message.audio?.id);
+        const esTexto = message.type === 'text' && Boolean(message.text?.body?.trim());
+
+        // Se ignoran imágenes, ubicaciones, stickers y demás: el agente no
+        // sabe qué hacer con ellos y fingir que sí sería peor.
+        if (!esAudio && !esTexto) continue;
 
         // La firma impide llamadas ajenas, pero un tenant con mucho volumen
         // consume créditos igual. La cuota se aplica también aquí.
@@ -91,17 +96,28 @@ async function processPayload(payload: WhatsAppPayload) {
         }
 
         const contactName = value.contacts?.find((c) => c.wa_id === message.from)?.profile?.name;
-        const media = await downloadMedia(message.audio.id);
 
-        const ingest = await ingestVoiceNote({
-          tenantId,
-          fromPhone: message.from,
-          audio: media.bytes,
-          contentType: media.mime,
-          externalId: message.id, // clave de idempotencia
-          senderName: contactName,
-          channel: 'whatsapp',
-        });
+        const ingest = esAudio
+          ? await (async () => {
+              const media = await downloadMedia(message.audio!.id);
+              return ingestVoiceNote({
+                tenantId,
+                fromPhone: message.from,
+                audio: media.bytes,
+                contentType: media.mime,
+                externalId: message.id, // clave de idempotencia
+                senderName: contactName,
+                channel: 'whatsapp',
+              });
+            })()
+          : await ingestTextMessage({
+              tenantId,
+              fromPhone: message.from,
+              text: message.text!.body,
+              externalId: message.id,
+              senderName: contactName,
+              channel: 'whatsapp',
+            });
 
         // Transcribir no basta: el agente tiene que actuar y responder.
         // Un mensaje repetido (idempotencia) ya fue atendido: no se reprocesa.
@@ -163,6 +179,7 @@ interface WhatsAppPayload {
           from: string;
           type: string;
           audio?: { id: string; mime_type?: string };
+          text?: { body: string };
         }>;
       };
     }>;
