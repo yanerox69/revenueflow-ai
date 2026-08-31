@@ -8,6 +8,8 @@ import {
   describeSlot,
   findSlots,
   localParts,
+  minutosDelDia,
+  ordenarPorCercania,
   resolveTargetDay,
   type AvailabilityRule,
 } from './scheduling';
@@ -171,6 +173,7 @@ async function decide(
 
     const slot = await findFirstFreeSlot(
       db, tenantId, pack, intent, vigente.duracion, now,
+      minutosDelDia(new Date(vigente.startsAt), pack.timezone),
     );
 
     if (!slot) {
@@ -309,6 +312,7 @@ async function respond(
 
 interface CitaVigenteFila {
   id: string;
+  startsAt: string;
   servicio: string;
   servicioId: string | null;
   duracion: number;
@@ -367,6 +371,7 @@ async function citaVigenteDe(
 
   return {
     id: data.id,
+    startsAt: data.starts_at,
     servicio: servicio?.name ?? 'tu cita',
     servicioId: data.service_id,
     duracion: servicio?.duration_minutes ?? 60,
@@ -381,6 +386,8 @@ async function findFirstFreeSlot(
   intent: ExtractedIntent,
   durationMinutes: number,
   now: Date,
+  /** Hora del día a la que acercarse, en minutos. Solo si no pidió franja. */
+  minutosPreferidos?: number | null,
 ): Promise<Date | null> {
   const { data: rules } = await db
     .from('availability_rules')
@@ -413,7 +420,12 @@ async function findFirstFreeSlot(
       now,
     });
 
-    if (slots.length) return slots[0];
+    if (!slots.length) continue;
+
+    // Sin franja pedida y con una hora de referencia, se prefiere lo cercano.
+    return minutosPreferidos != null && intent.period === 'ANY'
+      ? ordenarPorCercania(slots, minutosPreferidos, pack.timezone)[0]
+      : slots[0];
   }
 
   return null;

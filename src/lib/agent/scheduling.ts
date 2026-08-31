@@ -177,6 +177,32 @@ export function findSlots(search: SlotSearch): Date[] {
   return slots.sort((a, b) => a.getTime() - b.getTime());
 }
 
+/** Minutos transcurridos del día en la zona del negocio. 13:30 → 810. */
+export function minutosDelDia(when: Date, timeZone: string): number {
+  const p = localParts(when, timeZone);
+  return p.hour * 60 + p.minute;
+}
+
+/**
+ * Ordena los huecos por cercanía a una hora del día.
+ *
+ * Al reagendar sin decir hora, quien tenía cita a la 1 de la tarde espera
+ * algo parecido, no las 8 de la mañana. Cronológico sería técnicamente
+ * correcto y humanamente absurdo.
+ */
+export function ordenarPorCercania(
+  slots: Date[],
+  minutosPreferidos: number,
+  timeZone: string,
+): Date[] {
+  return [...slots].sort((a, b) => {
+    const da = Math.abs(minutosDelDia(a, timeZone) - minutosPreferidos);
+    const db = Math.abs(minutosDelDia(b, timeZone) - minutosPreferidos);
+    // A igual distancia, el más temprano.
+    return da - db || a.getTime() - b.getTime();
+  });
+}
+
 /** Formatea un instante en palabras, en la zona y el idioma del negocio. */
 export function describeSlot(when: Date, timeZone: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, {
