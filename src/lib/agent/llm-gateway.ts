@@ -126,6 +126,9 @@ export async function completeJson<T>(opts: CompleteJsonOptions): Promise<T> {
   try {
     return JSON.parse(stripFences(content)) as T;
   } catch {
+    // Se registra el contenido crudo: sin esto, depurar un fallo del modelo
+    // en producción es adivinar.
+    console.error('[llm] contenido no parseable:', content.slice(0, 400));
     throw new LlmGatewayError(
       `El modelo devolvió JSON inválido: ${content.slice(0, 200)}`,
     );

@@ -191,16 +191,39 @@ export async function extractIntent(input: ExtractIntentInput): Promise<Extracte
     `"""${input.transcription}"""`,
   ].join('\n');
 
-  const raw = await completeJson<unknown>({
-    system: SYSTEM,
-    user,
-    schema: SCHEMA as unknown as { name: string; schema: Record<string, unknown> },
-    model: input.model,
-    apiKey: input.apiKey,
-    fetchImpl: input.fetchImpl,
-  });
+  const pedir = () =>
+    completeJson<unknown>({
+      system: SYSTEM,
+      user,
+      schema: SCHEMA as unknown as { name: string; schema: Record<string, unknown> },
+      model: input.model,
+      apiKey: input.apiKey,
+      fetchImpl: input.fetchImpl,
+    });
 
-  return sanitizeIntent(parseIntent(raw), input.services);
+  // Un modelo pequeño devuelve basura de vez en cuando. Sin reintento, esa
+  // vez el cliente recibe "te paso con una persona" y desde fuera parece que
+  // el producto no funciona. Un segundo intento cuesta menos que eso.
+  let intent = parseIntent(await pedir());
+
+  if (esDegradada(intent)) {
+    console.warn('[intent] respuesta ilegible del modelo, reintentando una vez');
+    intent = parseIntent(await pedir());
+
+    if (esDegradada(intent)) {
+      console.error('[intent] el modelo falló dos veces: se escala a un humano');
+    }
+  }
+
+  return sanitizeIntent(intent, input.services);
+}
+
+/**
+ * Distingue "el modelo dijo que hace falta una persona" de "no entendimos al
+ * modelo". Las dos escalan, pero solo la segunda merece un reintento.
+ */
+export function esDegradada(intent: ExtractedIntent): boolean {
+  return intent.confidence === 0 && intent.intent === 'OTRO' && intent.service_id === null;
 }
 
 /**
