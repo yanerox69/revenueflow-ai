@@ -18,7 +18,9 @@ const configured = Boolean(URL && ANON && SERVICE);
 const OWNER_VE = { email: 'owner.ve@demo.local', password: 'demo-Passw0rd!' };
 const OWNER_BR = { email: 'owner.br@demo.local', password: 'demo-Passw0rd!' };
 
-describe.skipIf(!configured)('Aislamiento entre tenants', () => {
+// Estos tests salen a la red. Un corte puntual no es un fallo de aislamiento,
+// y un rojo intermitente hace que dejes de creerte los verdes.
+describe.skipIf(!configured)('Aislamiento entre tenants', { retry: 2 }, () => {
   let admin: SupabaseClient;
   let asVe: SupabaseClient;
   let tenantVe: string;

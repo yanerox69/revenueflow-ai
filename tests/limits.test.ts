@@ -42,7 +42,8 @@ describe('Test 20 · Extracción de la IP', () => {
   });
 });
 
-describe.skipIf(!configured)('Test 21 · El contador bloquea de verdad', () => {
+// Igual que en rls.test.ts: tocan la base por red, se reintentan.
+describe.skipIf(!configured)('Test 21 · El contador bloquea de verdad', { retry: 2 }, () => {
   let db: SupabaseClient;
   const bucket = `prueba:${Date.now()}`;
 
