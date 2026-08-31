@@ -1,11 +1,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ingestVoiceNote } from '@/lib/ingest/voice-note';
 import { handleVoiceNote } from '@/lib/agent/handle-voice-note';
+import { extraerIp, verificarLimites, verificarTamaño } from '@/lib/limits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
-const MAX_BYTES = 16 * 1024 * 1024; // igual que el límite de WhatsApp
 
 /**
  * Entrada por navegador: el mismo pipeline que el webhook de WhatsApp.
@@ -43,8 +42,19 @@ export async function POST(request: Request) {
 
   if (!(audio instanceof File)) return fail('Falta el archivo de audio.', 400);
   if (audio.size === 0) return fail('El audio está vacío.', 400);
-  if (audio.size > MAX_BYTES) return fail('El audio supera los 16 MB.', 413);
   if (!fromPhone) return fail('Falta el teléfono del remitente.', 400);
+
+  // El tamaño se comprueba ANTES de leer el archivo en memoria.
+  const tamaño = verificarTamaño(audio.size);
+  if (!tamaño.permitido) return fail(tamaño.mensaje!, 413);
+
+  // Y los contadores antes de gastar un crédito de transcripción.
+  const limite = await verificarLimites(profile.tenant_id, extraerIp(request));
+  if (!limite.permitido) {
+    return fail(limite.mensaje!, 429, {
+      'retry-after': String(limite.reintentarEn ?? 60),
+    });
+  }
 
   const bytes = await audio.arrayBuffer();
   const contentType = audio.type || 'audio/webm';
@@ -126,9 +136,13 @@ export async function POST(request: Request) {
 }
 
 /** Los errores previos al stream salen como JSON normal. */
-function fail(error: string, status: number): Response {
+function fail(
+  error: string,
+  status: number,
+  extra: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify({ stage: 'ERROR', error }), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...extra },
   });
 }

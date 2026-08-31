@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { ingestVoiceNote } from '@/lib/ingest/voice-note';
+import { verificarLimites } from '@/lib/limits';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -79,6 +80,14 @@ async function processPayload(payload: WhatsAppPayload) {
 
       for (const message of value.messages ?? []) {
         if (message.type !== 'audio' || !message.audio?.id) continue;
+
+        // La firma impide llamadas ajenas, pero un tenant con mucho volumen
+        // consume créditos igual. La cuota se aplica también aquí.
+        const limite = await verificarLimites(tenantId, 'whatsapp');
+        if (!limite.permitido) {
+          console.warn(`[whatsapp] cuota alcanzada (${limite.motivo}) en ${tenantId}`);
+          continue;
+        }
 
         const contactName = value.contacts?.find((c) => c.wa_id === message.from)?.profile?.name;
         const media = await downloadMedia(message.audio.id);
