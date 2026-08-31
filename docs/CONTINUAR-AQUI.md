@@ -4,90 +4,83 @@ Estado al 31 de agosto de 2026.
 
 ---
 
-## Hecho
+## Funcionando
 
 | | |
 |---|---|
-| Producto | desplegado y funcionando |
+| Producto | desplegado y público |
+| **WhatsApp real** | **✅ de punta a punta, verificado en el teléfono** |
 | Repositorio | público, MIT, despliegue continuo |
 | Tests | 100, en verde |
 | Video | `Desktop\Saas\video\RevenueFlow.mp4` · 3:40 |
 | Slides | `Desktop\Saas\video\slides\RevenueFlow-slides.pdf` |
-| Límites de uso | activos (protegen los créditos de AssemblyAI) |
-| Recordatorios | cron diario configurado |
-| WhatsApp — credenciales | **las cuatro cargadas en Vercel y desplegadas** |
+| Límites de uso | activos |
+| Recordatorios | cron diario |
+| Token de Vercel | renovado, sin caducidad |
 
-## Lo que falta: un solo paso
+### El circuito completo
 
-**Configurar el webhook en Meta.** Sin esto, los mensajes llegan al número de
-prueba pero Meta no se los reenvía a la aplicación.
-
-### Dónde
-
-developers.facebook.com → app **RevenueFlow** → **WhatsApp** → **Configuración**
-→ sección *Webhook* → **Editar**
-
-### Qué poner
-
-| Campo | Valor |
-|---|---|
-| **URL de devolución de llamada** | `https://revenueflow-ai-yanero.vercel.app/api/webhooks/whatsapp` |
-| **Token de verificación** | `TnW90ZGUlI4Qyo5smFZcKalhr4eOIz` |
-
-Pulsa **Verificar y guardar**. Debe quedar en verde.
-
-### Y el paso que se olvida
-
-En **Campos del webhook**, suscríbete a **`messages`**.
-
-> Sin esa suscripción el webhook queda verde pero Meta no manda nada. Es el
-> error más común de toda la configuración.
-
----
-
-## Probar que funciona
-
-Manda una **nota de voz** desde tu teléfono (`+58 426-2402281`, ya autorizado)
-al número de prueba **+1 555-200-2639**.
-
-Después:
-
-```bash
-cd "C:\Users\Yanero\Desktop\Saas\revenueflow"
-npx tsx scripts/agenda.mts
+```
+nota de voz por WhatsApp → Meta → webhook → AssemblyAI
+  → intención → calendario real → cita agendada
+  → confirmación de vuelta al WhatsApp del cliente
 ```
 
-Si la cita aparece, WhatsApp está operativo de punta a punta.
-
-Si no aparece, revisa los registros del despliegue en el panel de Vercel:
-busca `[whatsapp]`.
+**7 segundos.** Sin intervención humana.
 
 ---
 
-## Datos que vas a necesitar
+## ⚠️ Fecha límite: ~24 de septiembre
+
+El contador de lablab pasó de 25 a 24 días entre el 30 y el 31 de agosto.
+La entrega **no es el 30 de septiembre**: es alrededor del **24**.
+
+---
+
+## Pendientes
+
+- [ ] **Preguntar a los mentores** si hay problema con que la base estuviera
+      construida antes del 1 de septiembre. Es la única incógnita que puede
+      invalidar la entrega. Lleva dos días sin resolverse.
+- [ ] Crear el canal del equipo en Discord (paso 3 del checklist).
+- [ ] Citar la fuente del dato de penetración de WhatsApp en la slide 3,
+      o quitar el número.
+- [ ] Vigilar el consumo de créditos de AssemblyAI.
+
+## Lo que más sumaría ahora
+
+**Rehacer el video con WhatsApp real.** Grabar la pantalla del teléfono
+mandando la nota de voz y el panel actualizándose al lado. Deja de ser "subo
+un archivo" y pasa a ser el producto funcionando como lo usaría un cliente.
+Los seis audios de narración sirven tal cual.
+
+## Ideas para el resto del mes
+
+- Vertical de restaurantes (WOOKFOOD): pedidos en vez de citas. Es un producto
+  distinto sobre el mismo motor, no un ajuste.
+- Panel con las próximas citas y su estado de recordatorio.
+
+---
+
+## Datos de referencia
 
 ```
 App ID                  1557851768653741
 Phone number ID         1274501842413975
+WABA ID                 1079056921727722
 Número de prueba        +1 555-200-2639
-Tu número autorizado    +58 426-2402281
+Número autorizado       +58 426-2402281
 Negocio asociado        Clínica Dental Sonrisa (VE)
+PIN de 2FA              en .env.local (WHATSAPP_2FA_PIN)
 ```
 
-El token de acceso es **permanente**: no caduca, no hay que regenerarlo.
+El token de acceso de Meta es permanente.
 
----
+## Scripts útiles
 
-## Pendientes menores
-
-- [ ] Citar la fuente del dato de penetración de WhatsApp en la slide 3,
-      o quitar el número.
-- [ ] Preguntar a los mentores de lablab si hay problema con que la base
-      estuviera construida antes del 1 de septiembre.
-- [ ] Vigilar el consumo de créditos de AssemblyAI de vez en cuando.
-
-## Ideas para el mes
-
-- Vertical de restaurantes (WOOKFOOD) — pedidos en vez de citas.
-  Es un producto distinto sobre el mismo motor, no un ajuste.
-- Panel con las próximas citas y su estado de recordatorio.
+```bash
+npx tsx scripts/diagnostico-whatsapp.mts   # rastrea los últimos mensajes
+npx tsx scripts/agenda.mts                 # citas próximas por negocio
+npx tsx scripts/limpiar-agenda.mts         # libera horarios sin perder sesión
+npx tsx scripts/vercel-status.mts          # estado de despliegues
+```
