@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { ingestVoiceNote } from '@/lib/ingest/voice-note';
+import { handleVoiceNote } from '@/lib/agent/handle-voice-note';
 import { verificarLimites } from '@/lib/limits';
 
 export const runtime = 'nodejs';
@@ -92,7 +93,7 @@ async function processPayload(payload: WhatsAppPayload) {
         const contactName = value.contacts?.find((c) => c.wa_id === message.from)?.profile?.name;
         const media = await downloadMedia(message.audio.id);
 
-        await ingestVoiceNote({
+        const ingest = await ingestVoiceNote({
           tenantId,
           fromPhone: message.from,
           audio: media.bytes,
@@ -101,6 +102,18 @@ async function processPayload(payload: WhatsAppPayload) {
           senderName: contactName,
           channel: 'whatsapp',
         });
+
+        // Transcribir no basta: el agente tiene que actuar y responder.
+        // Un mensaje repetido (idempotencia) ya fue atendido: no se reprocesa.
+        if (ingest.transcription && !ingest.duplicate) {
+          await handleVoiceNote({
+            tenantId,
+            contactId: ingest.contactId,
+            conversationId: ingest.conversationId,
+            messageId: ingest.messageId,
+            transcription: ingest.transcription,
+          });
+        }
       }
     }
   }
