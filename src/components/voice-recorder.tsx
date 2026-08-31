@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Field, FormError } from '@/components/ui';
 
 type Phase = 'idle' | 'recording' | 'processing' | 'done' | 'error';
@@ -45,6 +46,7 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
   const [error, setError] = useState<string>();
   const [phone, setPhone] = useState(samplePhone);
 
+  const router = useRouter();
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -181,6 +183,9 @@ export function VoiceRecorder({ samplePhone }: { samplePhone: string }) {
         if (next === 'DONE') {
           setAgent((event.agent as Agent) ?? null);
           setPhase('done');
+          // El panel es un componente de servidor: sin esto la cita recién
+          // creada no aparecería en las listas hasta recargar a mano.
+          router.refresh();
         }
       }
     }
