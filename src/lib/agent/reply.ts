@@ -45,6 +45,40 @@ export function composeReply(outcome: AgentOutcome, pack: CountryPack): string {
   }
 }
 
+/**
+ * Recordatorio del día antes. Pide confirmación explícita: es lo que
+ * convierte una cita olvidada en una cita confirmada o en un hueco que el
+ * negocio puede volver a vender.
+ */
+export function composeReminder(
+  serviceName: string,
+  cuando: string,
+  pack: CountryPack,
+): string {
+  return pack.speechLanguage === 'pt'
+    ? `Oi! Lembrete do seu ${pack.persona.appointment}: ${serviceName}, ` +
+        `${endSentence(cuando)} Confirma que você vem? Se precisar remarcar, ` +
+        `é só me avisar.`
+    : `¡Hola! Te recuerdo tu ${pack.persona.appointment}: ${serviceName}, ` +
+        `${endSentence(cuando)} ¿Me confirmas que vienes? Si necesitas ` +
+        `cambiarla, avísame por aquí.`;
+}
+
+/**
+ * Seguimiento posterior.
+ *
+ * Redactado a propósito para funcionar tanto si la persona fue como si no.
+ * El sistema no sabe cuál de las dos pasó, y un mensaje que da por hecho lo
+ * segundo ofende a quien sí asistió.
+ */
+export function composeFollowUp(serviceName: string, pack: CountryPack): string {
+  return pack.speechLanguage === 'pt'
+    ? `Oi! Como foi o seu ${serviceName}? Se não conseguiu vir, me escreve ` +
+        `e eu remarco sem problema.`
+    : `¡Hola! ¿Cómo te fue con tu ${serviceName}? Si no pudiste venir, ` +
+        `escríbeme y te reagendo sin problema.`;
+}
+
 /** Cierra una frase con punto, salvo que ya termine en uno. */
 export function endSentence(text: string): string {
   const t = text.trimEnd();
