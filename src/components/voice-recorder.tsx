@@ -18,9 +18,21 @@ const STEPS: Array<{ label: string; reachedAt: Stage }> = [
 
 type Outcome =
   | { kind: 'BOOKED'; startsAt: string; label: string; serviceName: string }
+  | { kind: 'RESCHEDULED'; startsAt: string; label: string; serviceName: string }
+  | { kind: 'CONFIRMED'; label: string; serviceName: string }
+  | { kind: 'CANCELLED'; serviceName: string }
+  | { kind: 'NO_APPOINTMENT' }
   | { kind: 'NO_AVAILABILITY'; serviceName: string }
   | { kind: 'NEEDS_HUMAN'; reason: string }
   | { kind: 'NO_ACTION'; reason: string };
+
+/** Título de la tarjeta según lo que hizo el agente. */
+const TITULOS: Partial<Record<Outcome['kind'], string>> = {
+  BOOKED: 'Cita agendada',
+  RESCHEDULED: 'Cita reagendada',
+  CONFIRMED: 'Cita confirmada',
+  CANCELLED: 'Cita cancelada',
+};
 
 interface Agent {
   outcome: Outcome;
@@ -390,17 +402,21 @@ function TranscriptCard({ t }: { t: Transcript }) {
 function AgentOutcome({ agent }: { agent: Agent }) {
   const { outcome, intent } = agent;
 
-  if (outcome.kind === 'BOOKED') {
+  const titulo = TITULOS[outcome.kind];
+
+  if (titulo) {
     return (
       <>
         <div className="rounded-lg border border-accent/40 bg-accent/8 p-4">
           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-accent">
-            <CheckIcon /> Cita agendada
+            <CheckIcon /> {titulo}
           </p>
           <p className="mt-2 text-[17px] font-bold tracking-tight text-card-foreground">
-            {outcome.serviceName}
+            {'serviceName' in outcome ? outcome.serviceName : ''}
           </p>
-          <p className="mt-0.5 text-[15px] capitalize text-card-foreground">{outcome.label}</p>
+          {'label' in outcome && (
+            <p className="mt-0.5 text-[15px] capitalize text-card-foreground">{outcome.label}</p>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
             Sin intervención humana · confianza {Math.round(intent.confidence * 100)}%
           </p>
@@ -414,6 +430,7 @@ function AgentOutcome({ agent }: { agent: Agent }) {
     NO_AVAILABILITY: `No hay disponibilidad para ${
       'serviceName' in outcome ? outcome.serviceName : 'ese servicio'
     } en las próximas dos semanas.`,
+    NO_APPOINTMENT: 'Este cliente no tiene ninguna cita pendiente.',
     NEEDS_HUMAN: 'reason' in outcome ? outcome.reason : 'Requiere atención humana.',
     NO_ACTION: 'reason' in outcome ? outcome.reason : 'Sin acción automática.',
   };

@@ -2,7 +2,36 @@ import { z } from 'zod';
 import { completeJson } from './llm-gateway';
 import type { CountryPack } from '@/lib/country';
 
-export type IntentKind = 'AGENDAR' | 'PRECIO' | 'INFO' | 'CANCELAR' | 'OTRO';
+export type IntentKind =
+  | 'AGENDAR'
+  | 'REAGENDAR'
+  | 'CONFIRMAR'
+  | 'CANCELAR'
+  | 'PRECIO'
+  | 'INFO'
+  | 'OTRO';
+
+const INTENCIONES: IntentKind[] = [
+  'AGENDAR',
+  'REAGENDAR',
+  'CONFIRMAR',
+  'CANCELAR',
+  'PRECIO',
+  'INFO',
+  'OTRO',
+];
+
+/** Un turno de la conversación, tal como se le presenta al modelo. */
+export interface Turno {
+  quien: 'cliente' | 'negocio';
+  texto: string;
+}
+
+/** La cita que el cliente ya tiene, si existe. */
+export interface CitaVigente {
+  servicio: string;
+  cuando: string;
+}
 export type Period = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'ANY';
 export type RelativeDay = 'TODAY' | 'TOMORROW' | 'THIS_WEEK' | 'NEXT_WEEK' | 'NONE';
 
@@ -40,7 +69,13 @@ const SCHEMA = {
         type: ['string', 'null'],
         description: 'Id EXACTO del catálogo, o null si ninguno corresponde.',
       },
-      intent: { type: 'string', enum: ['AGENDAR', 'PRECIO', 'INFO', 'CANCELAR', 'OTRO'] },
+      intent: {
+        type: 'string',
+        enum: INTENCIONES,
+        description:
+          'REAGENDAR si pide cambiar una cita que ya tiene. CONFIRMAR si ' +
+          'responde que sí viene. CANCELAR si dice que no puede ir.',
+      },
       urgency: { type: 'string', enum: ['LOW', 'NORMAL', 'HIGH', 'EMERGENCY'] },
       // A propósito NO es un número.
       // Pedirle a un modelo pequeño que traduzca "jueves" a 4 falla: en
@@ -84,9 +119,14 @@ const SCHEMA = {
 } as const;
 
 const SYSTEM = `Eres el recepcionista de un negocio de servicios en Latinoamérica.
-Recibes la transcripción de una nota de voz de WhatsApp de un cliente.
+Recibes la transcripción de una nota de voz de WhatsApp de un cliente, junto
+con lo que ya se habló antes en esa conversación.
 
 Tu ÚNICA tarea es extraer la intención en el esquema JSON indicado.
+
+LEE EL HISTORIAL ANTES DE DECIDIR. Un mensaje corto casi nunca se entiende
+solo: "mejor el viernes" solo significa algo mirando lo anterior. Si el
+cliente ya tiene una cita y pide otro día, eso es REAGENDAR, no AGENDAR.
 
 REGLAS INNEGOCIABLES:
 - service_id debe ser un id EXACTO del catálogo que se te entrega. Si ninguno
@@ -111,6 +151,10 @@ export interface ExtractIntentInput {
   pack: CountryPack;
   /** Para que el modelo resuelva "mañana" o "el jueves" con referencia. */
   nowLocalISO: string;
+  /** Turnos anteriores, del más antiguo al más reciente. */
+  history?: Turno[];
+  /** La cita que el cliente ya tiene, si existe. */
+  citaVigente?: CitaVigente | null;
   model?: string;
   apiKey?: string;
   fetchImpl?: typeof fetch;
@@ -129,7 +173,21 @@ export async function extractIntent(input: ExtractIntentInput): Promise<Extracte
     'CATÁLOGO DE SERVICIOS (los únicos ids válidos):',
     catalog,
     '',
-    'TRANSCRIPCIÓN DE LA NOTA DE VOZ:',
+    ...(input.citaVigente
+      ? [
+          'CITA QUE ESTE CLIENTE YA TIENE:',
+          `${input.citaVigente.servicio} — ${input.citaVigente.cuando}`,
+          '',
+        ]
+      : ['ESTE CLIENTE NO TIENE NINGUNA CITA PENDIENTE.', '']),
+    ...(input.history?.length
+      ? [
+          'CONVERSACIÓN ANTERIOR (de lo más antiguo a lo más reciente):',
+          ...input.history.map((t) => `${t.quien}: ${t.texto}`),
+          '',
+        ]
+      : []),
+    'MENSAJE NUEVO DEL CLIENTE:',
     `"""${input.transcription}"""`,
   ].join('\n');
 
@@ -165,7 +223,7 @@ export const WEEKDAY_INDEX: Record<string, number> = {
 
 const IntentSchema = z.object({
   service_id: z.string().nullable().catch(null),
-  intent: z.enum(['AGENDAR', 'PRECIO', 'INFO', 'CANCELAR', 'OTRO']).catch('OTRO'),
+  intent: z.enum(INTENCIONES as [IntentKind, ...IntentKind[]]).catch('OTRO'),
   urgency: z.enum(['LOW', 'NORMAL', 'HIGH', 'EMERGENCY']).catch('NORMAL'),
   // El modelo manda un símbolo; aquí se traduce a índice.
   weekday: z

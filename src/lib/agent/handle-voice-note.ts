@@ -1,7 +1,7 @@
 import 'server-only';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getPack, type CountryPack } from '@/lib/country';
-import { extractIntent, type ExtractedIntent } from './intent';
+import { extractIntent, type ExtractedIntent, type Turno } from './intent';
 import { composeReply } from './reply';
 import { sendWhatsAppText, type DeliveryStatus } from '@/lib/messaging/whatsapp';
 import {
@@ -17,9 +17,16 @@ const SEARCH_HORIZON_DAYS = 14;
 
 export type AgentOutcome =
   | { kind: 'BOOKED'; appointmentId: string; startsAt: string; label: string; serviceName: string }
+  | { kind: 'RESCHEDULED'; appointmentId: string; startsAt: string; label: string; serviceName: string }
+  | { kind: 'CONFIRMED'; appointmentId: string; label: string; serviceName: string }
+  | { kind: 'CANCELLED'; appointmentId: string; serviceName: string }
+  | { kind: 'NO_APPOINTMENT' }
   | { kind: 'NO_AVAILABILITY'; serviceName: string }
   | { kind: 'NEEDS_HUMAN'; reason: string }
   | { kind: 'NO_ACTION'; reason: string };
+
+/** Cuántos turnos anteriores se le muestran al modelo. */
+const TURNOS_DE_CONTEXTO = 8;
 
 export interface AgentReply {
   text: string;
@@ -82,6 +89,13 @@ export async function handleVoiceNote(
   const now = new Date();
   const local = localParts(now, pack.timezone);
 
+  // Sin esto, "mejor el viernes" no significa nada: el modelo necesita saber
+  // qué se habló antes y si este cliente ya tiene una cita.
+  const [history, vigente] = await Promise.all([
+    cargarHistorial(db, input.conversationId, input.messageId),
+    citaVigenteDe(db, tenant.id, input.contactId, pack, tenant.locale, now),
+  ]);
+
   const intent = await extractIntent({
     transcription: input.transcription,
     services: catalog.map((s) => ({ id: s.id, name: s.name })),
@@ -89,12 +103,18 @@ export async function handleVoiceNote(
     nowLocalISO:
       `${local.year}-${pad(local.month)}-${pad(local.day)} ` +
       `${pad(local.hour)}:${pad(local.minute)} (${pack.timezone})`,
+    history,
+    citaVigente: vigente
+      ? { servicio: vigente.servicio, cuando: vigente.label }
+      : null,
   });
 
   options.onIntent?.(intent);
 
   const leadId = await upsertLead(db, input, intent, catalog);
-  const outcome = await decide(db, input, tenant.id, tenant.locale, pack, intent, catalog, leadId, now);
+  const outcome = await decide(
+    db, input, tenant.id, tenant.locale, pack, intent, catalog, leadId, now, vigente,
+  );
   const reply = await respond(db, input, tenant.id, pack, outcome);
 
   return { intent, outcome, leadId, reply };
@@ -114,10 +134,81 @@ async function decide(
   catalog: Service[],
   leadId: string | null,
   now: Date,
+  vigente: CitaVigenteFila | null,
 ): Promise<AgentOutcome> {
   if (intent.needs_human) {
     return { kind: 'NEEDS_HUMAN', reason: intent.summary };
   }
+
+  // --- Acciones sobre una cita que ya existe -------------------------------
+  if (intent.intent === 'CONFIRMAR' || intent.intent === 'CANCELAR' || intent.intent === 'REAGENDAR') {
+    if (!vigente) return { kind: 'NO_APPOINTMENT' };
+
+    if (intent.intent === 'CONFIRMAR') {
+      await db
+        .from('appointments')
+        .update({ status: 'CONFIRMED', confirmed_at: new Date().toISOString() })
+        .eq('id', vigente.id);
+
+      return {
+        kind: 'CONFIRMED',
+        appointmentId: vigente.id,
+        label: vigente.label,
+        serviceName: vigente.servicio,
+      };
+    }
+
+    if (intent.intent === 'CANCELAR') {
+      await db.from('appointments').update({ status: 'CANCELLED' }).eq('id', vigente.id);
+      if (leadId) await db.from('leads').update({ status: 'LOST' }).eq('id', leadId);
+
+      return { kind: 'CANCELLED', appointmentId: vigente.id, serviceName: vigente.servicio };
+    }
+
+    // REAGENDAR: se libera el hueco viejo ANTES de buscar el nuevo, para que
+    // el propio horario actual vuelva a estar disponible si lo pide.
+    await db.from('appointments').update({ status: 'CANCELLED' }).eq('id', vigente.id);
+
+    const slot = await findFirstFreeSlot(
+      db, tenantId, pack, intent, vigente.duracion, now,
+    );
+
+    if (!slot) {
+      // Sin hueco nuevo, se restaura el anterior: peor es dejarlo sin nada.
+      await db.from('appointments').update({ status: 'SCHEDULED' }).eq('id', vigente.id);
+      return { kind: 'NO_AVAILABILITY', serviceName: vigente.servicio };
+    }
+
+    const { data: nueva } = await db
+      .from('appointments')
+      .insert({
+        tenant_id: tenantId,
+        contact_id: input.contactId,
+        lead_id: leadId,
+        service_id: vigente.servicioId,
+        starts_at: slot.toISOString(),
+        ends_at: new Date(slot.getTime() + vigente.duracion * 60_000).toISOString(),
+        status: 'SCHEDULED',
+        created_by_ai: true,
+        source_message_id: input.messageId,
+      })
+      .select('id')
+      .single();
+
+    if (!nueva) {
+      await db.from('appointments').update({ status: 'SCHEDULED' }).eq('id', vigente.id);
+      return { kind: 'NO_AVAILABILITY', serviceName: vigente.servicio };
+    }
+
+    return {
+      kind: 'RESCHEDULED',
+      appointmentId: nueva.id,
+      startsAt: slot.toISOString(),
+      label: describeSlot(slot, pack.timezone, locale),
+      serviceName: vigente.servicio,
+    };
+  }
+
   if (intent.intent !== 'AGENDAR') {
     return { kind: 'NO_ACTION', reason: `Intención detectada: ${intent.intent}` };
   }
@@ -214,6 +305,73 @@ async function respond(
   }
 
   return { text, delivery: delivery.status, deliveryReason: delivery.reason };
+}
+
+interface CitaVigenteFila {
+  id: string;
+  servicio: string;
+  servicioId: string | null;
+  duracion: number;
+  label: string;
+}
+
+/**
+ * Los turnos anteriores de la conversación, del más antiguo al más reciente.
+ * Se excluye el mensaje que estamos procesando: ya va aparte.
+ */
+async function cargarHistorial(
+  db: Db,
+  conversationId: string,
+  messageIdActual: string,
+): Promise<Turno[]> {
+  const { data } = await db
+    .from('messages')
+    .select('id, direction, body, transcription')
+    .eq('conversation_id', conversationId)
+    .neq('id', messageIdActual)
+    .order('created_at', { ascending: false })
+    .limit(TURNOS_DE_CONTEXTO);
+
+  return (data ?? [])
+    .reverse()
+    .map((m) => ({
+      quien: (m.direction === 'IN' ? 'cliente' : 'negocio') as Turno['quien'],
+      texto: (m.transcription ?? m.body ?? '').trim(),
+    }))
+    .filter((t) => t.texto.length > 0);
+}
+
+/** La próxima cita del contacto, si tiene alguna. */
+async function citaVigenteDe(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+  pack: CountryPack,
+  locale: string,
+  now: Date,
+): Promise<CitaVigenteFila | null> {
+  const { data } = await db
+    .from('appointments')
+    .select('id, starts_at, ends_at, service_id, services(name, duration_minutes)')
+    .eq('tenant_id', tenantId)
+    .eq('contact_id', contactId)
+    .in('status', ['SCHEDULED', 'CONFIRMED'])
+    .gte('starts_at', now.toISOString())
+    .order('starts_at')
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const servicio = data.services as { name?: string; duration_minutes?: number } | null;
+
+  return {
+    id: data.id,
+    servicio: servicio?.name ?? 'tu cita',
+    servicioId: data.service_id,
+    duracion: servicio?.duration_minutes ?? 60,
+    label: describeSlot(new Date(data.starts_at), pack.timezone, locale),
+  };
 }
 
 async function findFirstFreeSlot(

@@ -37,6 +37,32 @@ export function composeReply(outcome: AgentOutcome, pack: CountryPack): string {
           `las próximas dos semanas. Te paso con alguien del equipo para ` +
           `buscarte un espacio.`;
 
+    case 'RESCHEDULED':
+      return pt
+        ? `${cap(ok)}! Mudei seu ${outcome.serviceName} para ` +
+            `${endSentence(outcome.label)} O horário anterior fica livre.`
+        : `¡${cap(ok)}! Cambié tu ${outcome.serviceName} para el ` +
+            `${endSentence(outcome.label)} El horario anterior queda libre.`;
+
+    case 'CONFIRMED':
+      return pt
+        ? `Perfeito, ${outcome.serviceName} confirmado para ` +
+            `${endSentence(outcome.label)} Te espero!`
+        : `Perfecto, ${outcome.serviceName} confirmado para el ` +
+            `${endSentence(outcome.label)} ¡Te espero!`;
+
+    case 'CANCELLED':
+      return pt
+        ? `Pronto, cancelei seu ${outcome.serviceName}. Quando quiser ` +
+            `remarcar, é só me chamar.`
+        : `Listo, cancelé tu ${outcome.serviceName}. Cuando quieras volver ` +
+            `a agendar, escríbeme por aquí.`;
+
+    case 'NO_APPOINTMENT':
+      return pt
+        ? 'Não encontrei nenhum agendamento seu. Quer marcar um?'
+        : 'No encontré ninguna cita tuya. ¿Quieres que agende una?';
+
     case 'NEEDS_HUMAN':
     case 'NO_ACTION':
       return pt
