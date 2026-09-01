@@ -63,10 +63,10 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
 
 ## Pendientes
 
-- [ ] **Q&A del 1 de septiembre a las 12:00** — preguntar si se permite trabajo
-      previo al inicio, dado que la base estaba construida y desplegada antes.
-      Responden los organizadores en directo: mejor que buscar mentores sueltos.
-      **Es lo único que puede invalidar la entrega.**
+- [x] **Pregunta enviada** (1 de septiembre) por correo a AssemblyAI (Zack
+      Klebanoff) en vez de esperar al Q&A: si se permite trabajo previo al
+      inicio, dado que la base estaba construida y desplegada antes.
+      **Es lo único que puede invalidar la entrega. Esperando respuesta.**
 
       > "My project was already built and deployed before Sept 1. I'll keep
       > developing it during the month. Is prior work allowed, or does
