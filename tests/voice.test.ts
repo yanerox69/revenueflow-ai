@@ -24,6 +24,7 @@ const OK_RESPONSE = {
   text: 'Necesito una cita para una limpieza dental el jueves.',
   confidence: 0.94,
   language_code: 'es',
+  language_confidence: 0.98,
   audio_duration: 6.2,
   error: null,
 };
@@ -45,8 +46,34 @@ describe('Test 9 · El country pack manda sobre la transcripción', () => {
 
     // Omitirlo haría que la API caiga a universal-3-pro sin avisar.
     expect(params.speech_models).toEqual(['universal-3-5-pro', 'universal-2']);
-    expect(params.language_code).toBe('es');
     expect(params.punctuate).toBe(true);
+  });
+
+  it('detecta el idioma automáticamente en vez de forzar el del país del tenant', async () => {
+    const { client, transcribe } = fakeClient(OK_RESPONSE);
+    await new AssemblyAITranscriber({ client }).transcribe({
+      audio: new Uint8Array([1, 2, 3]),
+      language: 'es',
+    });
+
+    const params = transcribe.mock.calls[0][0] as Record<string, unknown>;
+
+    // language_detection y language_code son mutuamente excluyentes en la
+    // API: forzar el segundo le impediría a un cliente hablar en otro idioma.
+    expect(params.language_detection).toBe(true);
+    expect(params).not.toHaveProperty('language_code');
+    expect(params.language_detection_options).toEqual({ fallback_language: 'es' });
+  });
+
+  it('devuelve el idioma detectado y su confianza', async () => {
+    const { client } = fakeClient(OK_RESPONSE);
+    const result = await new AssemblyAITranscriber({ client }).transcribe({
+      audio: new Uint8Array([1]),
+      language: 'es',
+    });
+
+    expect(result.detectedLanguage).toBe('es');
+    expect(result.languageConfidence).toBe(0.98);
   });
 
   it('usa el speech_models del pack del tenant cuando se aporta', async () => {

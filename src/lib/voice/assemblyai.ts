@@ -49,7 +49,13 @@ export class AssemblyAITranscriber implements Transcriber {
     const params: Record<string, unknown> = {
       audio,
       speech_models: req.speechModels ?? SPEECH_MODELS,
-      language_code: req.language,
+      // Detección automática: un cliente puede mandarle audio a un negocio
+      // en un idioma distinto al del país del tenant. `language_detection` y
+      // `language_code` son mutuamente excluyentes (la API rechaza ambos a
+      // la vez); `fallback_language` es solo la referencia si la detección
+      // no llega a una conclusión clara.
+      language_detection: true,
+      language_detection_options: { fallback_language: req.language },
       punctuate: true,
       format_text: true,
     };
@@ -77,6 +83,7 @@ export class AssemblyAITranscriber implements Transcriber {
       text: (transcript.text ?? '').trim(),
       confidence: transcript.confidence ?? null,
       detectedLanguage: transcript.language_code ?? null,
+      languageConfidence: transcript.language_confidence ?? null,
       durationSeconds: transcript.audio_duration ?? null,
       providerJobId: transcript.id,
     };

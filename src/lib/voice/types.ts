@@ -7,7 +7,12 @@
 
 export interface TranscriptionRequest {
   audio: ArrayBuffer | Uint8Array;
-  /** ISO-639-1. Lo aporta el CountryPack del tenant. */
+  /**
+   * ISO-639-1. NO fuerza el idioma de la transcripción: el proveedor detecta
+   * el idioma real del audio automáticamente, porque un cliente puede
+   * escribirle a un negocio en un idioma distinto al del país del tenant.
+   * Este valor solo se usa como referencia si la detección no es concluyente.
+   */
   language: string;
   /**
    * Lista ORDENADA de respaldo para `speech_models`. La aporta el CountryPack
@@ -26,6 +31,8 @@ export interface TranscriptionResult {
   /** 0–1. Útil para decidir si el agente actúa o escala a un humano. */
   confidence: number | null;
   detectedLanguage: string | null;
+  /** 0–1. Confianza de la detección automática de idioma, no de la transcripción. */
+  languageConfidence: number | null;
   durationSeconds: number | null;
   providerJobId: string;
 }
