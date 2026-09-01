@@ -109,6 +109,7 @@ export async function handleVoiceNote(
     citaVigente: vigente
       ? { servicio: vigente.servicio, cuando: vigente.label }
       : null,
+    model: pack.llmModel,
   });
 
   options.onIntent?.(intent);

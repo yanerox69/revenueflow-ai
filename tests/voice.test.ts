@@ -49,6 +49,18 @@ describe('Test 9 · El country pack manda sobre la transcripción', () => {
     expect(params.punctuate).toBe(true);
   });
 
+  it('usa el speech_models del pack del tenant cuando se aporta', async () => {
+    const { client, transcribe } = fakeClient(OK_RESPONSE);
+    await new AssemblyAITranscriber({ client }).transcribe({
+      audio: new Uint8Array([1]),
+      language: 'pt',
+      speechModels: getPack('BR').speechModels,
+    });
+
+    const params = transcribe.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.speech_models).toEqual(getPack('BR').speechModels);
+  });
+
   it('pasa prompt y keyterms cuando se aportan', async () => {
     const { client, transcribe } = fakeClient(OK_RESPONSE);
     await new AssemblyAITranscriber({ client }).transcribe({

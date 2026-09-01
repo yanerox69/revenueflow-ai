@@ -236,6 +236,7 @@ export async function ingestVoiceNote(
     const result = await transcriber.transcribe({
       audio: note.audio,
       language: pack.speechLanguage,
+      speechModels: pack.speechModels,
       contentType: note.contentType,
       prompt: context.prompt,
       keyterms: context.keyterms,

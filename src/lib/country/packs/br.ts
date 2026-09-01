@@ -86,6 +86,8 @@ export const BR_PACK: CountryPack = {
   personalIdKind: 'CPF',
   phonePrefix: '+55',
   speechLanguage: 'pt',
+  speechModels: ['universal-3-5-pro', 'universal-2'],
+  llmModel: 'qwen3.5-4b-32k-fast',
   samplePhone: '(11) 98765-4321',
 
   validateTaxId: validateCnpj,

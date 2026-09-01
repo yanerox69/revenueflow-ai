@@ -9,6 +9,11 @@ export interface TranscriptionRequest {
   audio: ArrayBuffer | Uint8Array;
   /** ISO-639-1. Lo aporta el CountryPack del tenant. */
   language: string;
+  /**
+   * Lista ORDENADA de respaldo para `speech_models`. La aporta el CountryPack
+   * del tenant. Si se omite, el adaptador usa su propio default.
+   */
+  speechModels?: readonly string[];
   contentType?: string;
   /** Descripción en prosa de la escena. Sube bastante la precisión. */
   prompt?: string;

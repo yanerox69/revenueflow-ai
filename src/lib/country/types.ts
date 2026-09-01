@@ -61,6 +61,16 @@ export interface CountryPack {
    */
   readonly speechLanguage: string;
 
+  /**
+   * Lista ORDENADA de respaldo para `speech_models` (AssemblyAI). Vive en el
+   * pack, no en el transcriptor, para que un país pueda pedir otro modelo el
+   * día que la cobertura de idioma cambie sin tocar el motor.
+   */
+  readonly speechModels: readonly string[];
+
+  /** Modelo del LLM Gateway usado para extraer la intención en este idioma. */
+  readonly llmModel: string;
+
   /** Teléfono de ejemplo válido, para precargar formularios de demo. */
   readonly samplePhone: string;
 
