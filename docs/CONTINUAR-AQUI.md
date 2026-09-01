@@ -63,14 +63,19 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
 
 ## Pendientes
 
-- [x] **Pregunta enviada** (1 de septiembre) por correo a AssemblyAI (Zack
+- [ ] **Pregunta enviada** (1 de septiembre) por correo a AssemblyAI (Zack
       Klebanoff) en vez de esperar al Q&A: si se permite trabajo previo al
       inicio, dado que la base estaba construida y desplegada antes.
-      **Es lo único que puede invalidar la entrega. Esperando respuesta.**
+      **Es lo único que puede invalidar la entrega.**
 
       > "My project was already built and deployed before Sept 1. I'll keep
       > developing it during the month. Is prior work allowed, or does
       > everything have to be built inside the window?"
+
+      Respondió el bot de soporte (Joey): no es algo que cubra la
+      documentación del producto, hace falta alguien del equipo que maneje
+      las reglas del hackathon. Van a dar seguimiento por correo.
+      **Sigue sin respuesta definitiva.**
 - [ ] Rehacer el video con WhatsApp real: teléfono mandando notas y el panel
       actualizándose, incluida la conversación con el reagendado.
 - [ ] Citar la fuente del dato de WhatsApp en la slide 3, o quitarlo.
@@ -83,6 +88,10 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
   distinto sobre el mismo motor, no un ajuste.
 - Tomar el control de una conversación desde el panel (el modo IA/humano ya
   está en la base, falta el botón).
+- Probar `keyterms_prompt` con el catálogo del tenant (nombres de servicios,
+  personal) para notas de voz cortas con vocabulario del negocio. Sugerencia
+  de soporte de AssemblyAI: probar primero sin prompt, añadir contexto solo
+  donde ya se vean errores de vocabulario.
 
 ---
 
