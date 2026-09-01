@@ -48,12 +48,29 @@ el reto encaja, se presenta lo mismo con otro enfoque.
 
 ---
 
+## ⏰ Fechas exactas (hora de Venezuela)
+
+```
+Sep  1, 11:00 a. m.   Kick-off AssemblyAI
+Sep  1, 12:00 p. m.   Q&A en Discord   ← preguntar aquí lo del trabajo previo
+Sep 18, 11:00 a. m.   Se revela el reto de WeAreDevelopers
+Sep 24,  8:00 p. m.   Cierre WeAreDevelopers
+Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
+```
+
+> El cierre de AssemblyAI es a las **11 de la mañana** del 30. Planificar
+> "entrego el 30" deja fuera. Trabajar con el **29** como fecha real.
+
 ## Pendientes
 
-- [ ] **Hablar con los mentores** en el Discord general de lablab (el canal de
-      equipo necesita 2 miembros, así que no se puede crear yendo solo).
-      Preguntar si hay problema con que la base estuviera construida antes del
-      1 de septiembre. **Es lo único que puede invalidar la entrega.**
+- [ ] **Q&A del 1 de septiembre a las 12:00** — preguntar si se permite trabajo
+      previo al inicio, dado que la base estaba construida y desplegada antes.
+      Responden los organizadores en directo: mejor que buscar mentores sueltos.
+      **Es lo único que puede invalidar la entrega.**
+
+      > "My project was already built and deployed before Sept 1. I'll keep
+      > developing it during the month. Is prior work allowed, or does
+      > everything have to be built inside the window?"
 - [ ] Rehacer el video con WhatsApp real: teléfono mandando notas y el panel
       actualizándose, incluida la conversación con el reagendado.
 - [ ] Citar la fuente del dato de WhatsApp en la slide 3, o quitarlo.
