@@ -63,10 +63,14 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
 
 ## Pendientes
 
-- [ ] **Q&A del 1 de septiembre a las 12:00** — preguntar si se permite trabajo
-      previo al inicio, dado que la base estaba construida y desplegada antes.
-      Responden los organizadores en directo: mejor que buscar mentores sueltos.
-      **Es lo único que puede invalidar la entrega.**
+- [ ] **¿Se permite trabajo previo al 1 de septiembre?** Es lo único que puede
+      invalidar la entrega. Preguntado por dos vías:
+
+      - ✅ **Correo a support de AssemblyAI**, 1 sep 17:10, desde
+        `yanerox69@gmail.com`, respondiendo al correo de Zack Klebanoff
+        (Applied AI Lead). *Sin respuesta todavía.*
+      - [ ] **Q&A en Discord** — es el canal que de verdad decide. Support
+        conoce la API, no necesariamente las bases del concurso.
 
       > "My project was already built and deployed before Sept 1. I'll keep
       > developing it during the month. Is prior work allowed, or does
