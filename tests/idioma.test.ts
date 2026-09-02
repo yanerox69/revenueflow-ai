@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import {
   normalizarIdioma,
   resolverIdioma,
   idiomaDelPais,
   idiomasEsperados,
   localeDe,
+  usaOtraEscritura,
   CONFIANZA_MINIMA_IDIOMA,
 } from '@/lib/agent/idioma';
 import { describeSlot } from '@/lib/agent/scheduling';
@@ -76,7 +77,29 @@ describe('Test 25 · Quién decide el idioma de la respuesta', () => {
   });
 });
 
-describe('Test 26 · Qué idiomas se le piden al transcriptor', () => {
+describe('Test 26 · La escritura desmiente al modelo', () => {
+  // Caso real: el modelo etiquetó "你好，我需要洗牙" como inglés, y el
+  // cliente habría recibido la respuesta en inglés. La escritura es una
+  // prueba objetiva que no depende de que el modelo acierte.
+  it('reconoce alfabetos que ninguno de los tres idiomas usa', () => {
+    expect(usaOtraEscritura('你好，我需要洗牙。星期四下午有空吗？')).toBe(true);
+    expect(usaOtraEscritura('Здравствуйте! Мне нужна чистка зубов.')).toBe(true);
+    expect(usaOtraEscritura('こんにちは、歯のクリーニングをお願いします')).toBe(true);
+    expect(usaOtraEscritura('안녕하세요, 스케일링 예약하고 싶어요')).toBe(true);
+    expect(usaOtraEscritura('مرحبا، أريد تنظيف الأسنان')).toBe(true);
+  });
+
+  it('no se activa con acentos ni con signos del español', () => {
+    // Un falso positivo aquí sería peor que el problema: mandaría a
+    // español a clientes que sí escriben en portugués o inglés.
+    expect(usaOtraEscritura('¿Tienes algo el jueves? Necesito una limpieza.')).toBe(false);
+    expect(usaOtraEscritura('Oi! Preciso de uma limpeza dental na quinta às 13h.')).toBe(false);
+    expect(usaOtraEscritura("Hi, I'd like a cleaning — Thursday afternoon?")).toBe(false);
+    expect(usaOtraEscritura('Ação, coração, señor, ñandú, über')).toBe(false);
+  });
+});
+
+describe('Test 27 · Qué idiomas se le piden al transcriptor', () => {
   it('el del país primero, porque es el más probable', () => {
     expect(idiomasEsperados(VE)[0]).toBe('es');
     expect(idiomasEsperados(BR)[0]).toBe('pt');
@@ -89,7 +112,7 @@ describe('Test 26 · Qué idiomas se le piden al transcriptor', () => {
   });
 });
 
-describe('Test 27 · La respuesta sale en el idioma del cliente', () => {
+describe('Test 28 · La respuesta sale en el idioma del cliente', () => {
   it('responde en portugués a un cliente de un negocio venezolano', () => {
     const texto = composeReply(BOOKED, VE, 'pt');
     expect(texto).toContain('Agendei');
@@ -146,7 +169,7 @@ describe('Test 27 · La respuesta sale en el idioma del cliente', () => {
   });
 });
 
-describe('Test 28 · La hora se dice como se dice en cada sitio', () => {
+describe('Test 29 · La hora se dice como se dice en cada sitio', () => {
   // Estaba con `hour12: true` fijo, así que el tenant brasileño llevaba
   // desde el principio diciendo "1:00 PM" en vez de "13:00". No lo pilló
   // nadie porque el fixture de portugués era un string escrito a mano.
@@ -179,7 +202,7 @@ describe('Test 28 · La hora se dice como se dice en cada sitio', () => {
   });
 });
 
-describe('Test 29 · Recordatorios en el idioma del contacto', () => {
+describe('Test 30 · Recordatorios en el idioma del contacto', () => {
   // El caso que hace falta que funcione: el cron dispara a las nueve de la
   // mañana sin ningún mensaje entrante del que deducir nada.
   it('recuerda en inglés a quien escribió en inglés', () => {

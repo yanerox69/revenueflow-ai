@@ -44,6 +44,29 @@ export function normalizarIdioma(code: string | null | undefined): Idioma | null
     : null;
 }
 
+/**
+ * Sistemas de escritura que ninguno de nuestros tres idiomas usa.
+ *
+ * Cirílico, chino, japonés, coreano, árabe, hebreo, devanagari, griego y
+ * tailandés. Si aparecen, el mensaje no está en español, portugués ni
+ * inglés — da igual lo que diga el modelo.
+ */
+const ESCRITURA_AJENA =
+  /[Ѐ-ӿ一-鿿぀-ヿ가-힯؀-ۿ֐-׿ऀ-ॿͰ-Ͽ฀-๿]/;
+
+/**
+ * Desmiente al modelo cuando dice que un texto está en un idioma que
+ * evidentemente no es el suyo.
+ *
+ * En pruebas, "你好，我需要洗牙" fue etiquetado como inglés, y el cliente
+ * habría recibido una respuesta en inglés. La escritura es una prueba
+ * objetiva que no depende de que el modelo acierte, y aquí manda ella:
+ * el modelo decide qué quiere el cliente, el sistema decide qué es cierto.
+ */
+export function usaOtraEscritura(texto: string): boolean {
+  return ESCRITURA_AJENA.test(texto);
+}
+
 /** El idioma del país del negocio, si sabemos responder en él. */
 export function idiomaDelPais(pack: CountryPack): Idioma {
   return normalizarIdioma(pack.speechLanguage) ?? 'es';

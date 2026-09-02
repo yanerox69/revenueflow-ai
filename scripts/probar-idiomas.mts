@@ -36,21 +36,44 @@ if (!tenant) {
 
 console.log(`\nNegocio: ${tenant.name} (${tenant.country_code}) — idioma del país: español\n`);
 
+// Un contacto nuevo por corrida. Con el mismo teléfono, el agente ve en el
+// historial que ya le agendó esto y lee el segundo mensaje como un cambio,
+// no como una petición nueva. Es correcto por su parte y arruina la prueba.
+const RONDA = String(Date.now()).slice(-6);
+
 const CASOS = [
   {
     idiomaEsperado: 'pt',
-    telefono: '0414-9990001',
+    telefono: `0414-1${RONDA}`,
     texto: 'Oi, boa tarde. Preciso de uma limpeza dental. Tem horário na quinta à tarde?',
   },
   {
     idiomaEsperado: 'en',
-    telefono: '0414-9990002',
+    telefono: `0414-2${RONDA}`,
     texto: 'Hi, good afternoon. I need a dental cleaning. Do you have anything Thursday afternoon?',
   },
   {
     idiomaEsperado: 'es',
-    telefono: '0414-9990003',
+    telefono: `0414-3${RONDA}`,
     texto: 'Hola, buenas tardes. Necesito una limpieza dental. ¿Tienes algo el jueves en la tarde?',
+  },
+
+  // --- Idiomas SIN plantilla ------------------------------------------------
+  // Aquí la respuesta correcta es español, no ruso ni chino. Traducir con el
+  // modelo pondría en su boca una fecha y una hora, que es justo lo que las
+  // plantillas existen para evitar. Lo que sí tiene que pasar: que entienda
+  // y agende igual. Entender no depende de que sepamos responder.
+  {
+    idiomaEsperado: 'es',
+    telefono: `0414-4${RONDA}`,
+    texto: 'Здравствуйте! Мне нужна чистка зубов. Есть время в четверг днём?',
+    nota: 'ruso',
+  },
+  {
+    idiomaEsperado: 'es',
+    telefono: `0414-5${RONDA}`,
+    texto: '你好，我需要洗牙。星期四下午有空吗？',
+    nota: 'mandarín',
   },
 ];
 
@@ -60,7 +83,7 @@ let primero = true;
 for (const caso of CASOS) {
   // La cuenta nueva devuelve 429 si se le encadenan las peticiones. En
   // producción no pasa: los clientes no escriben tres a la vez.
-  if (!primero) await new Promise((r) => setTimeout(r, 20_000));
+  if (!primero) await new Promise((r) => setTimeout(r, 45_000));
   primero = false;
 
   const ingest = await ingestTextMessage({
@@ -84,7 +107,10 @@ for (const caso of CASOS) {
   const ok = agent.idioma === caso.idiomaEsperado;
   if (!ok) fallos++;
 
-  console.log(`${ok ? '  OK  ' : ' FALLA'} esperado ${caso.idiomaEsperado} → obtuvo ${agent.idioma}`);
+  const etiqueta = 'nota' in caso ? ` (${(caso as { nota: string }).nota}, sin plantilla)` : '';
+  console.log(
+    `${ok ? '  OK  ' : ' FALLA'} esperado ${caso.idiomaEsperado} → obtuvo ${agent.idioma}${etiqueta}`,
+  );
   console.log(`        cliente: ${caso.texto.slice(0, 62)}…`);
   console.log(`        agente:  ${agent.reply.text}`);
   console.log(`        (modelo dijo: ${agent.intent.language} · desenlace: ${agent.outcome.kind})\n`);
@@ -102,4 +128,8 @@ for (const caso of CASOS) {
   }
 }
 
-console.log(fallos === 0 ? 'Los tres idiomas, correctos.\n' : `${fallos} fallos.\n`);
+console.log(
+  fallos === 0
+    ? `Los ${CASOS.length} casos, correctos.\n`
+    : `${fallos} de ${CASOS.length} fallan.\n`,
+);

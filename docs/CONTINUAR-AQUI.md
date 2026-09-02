@@ -11,9 +11,10 @@ Estado al 31 de agosto de 2026.
 | Producto | desplegado y público |
 | **WhatsApp real** | notas de voz **y** mensajes escritos |
 | **Memoria de conversación** | "mejor el viernes" reagenda la cita correcta |
+| **Idioma del cliente** | responde en es / pt / en, no en el del país |
 | **Panel** | citas, conversaciones, confirmaciones y cierre de citas |
 | Repositorio | público, MIT, despliegue continuo |
-| Tests | **130** |
+| Tests | **155** |
 | Video | `Desktop\Saas\video\RevenueFlow.mp4` · 3:40 |
 | Slides | `Desktop\Saas\video\slides\RevenueFlow-slides.pdf` |
 | Límites de uso | activos |
@@ -31,6 +32,32 @@ nota de voz o texto por WhatsApp
 
 Y si no entiende, si es una queja o si es de dinero: **escala a una persona
 y se detiene.**
+
+### El idioma lo pone el cliente
+
+Responde en **español, portugués o inglés**, según cómo le escriban — no
+según el país del negocio. Probado con cinco idiomas contra el agente real:
+
+| Cliente escribe en | Responde en | Agenda |
+|---|---|---|
+| portugués | portugués, con fecha en portugués | sí |
+| inglés | inglés | sí |
+| español | español venezolano | sí |
+| **ruso** | español | **sí** |
+| **mandarín** | español | **sí** |
+
+Los dos últimos son el caso importante: entender no depende de saber
+responder. Se transcribe y se agenda igual, y la respuesta sale en el idioma
+del país porque **no se traducen las plantillas con el modelo** — llevan
+fecha y hora exactas, y ahí una alucinación es una cita perdida.
+
+> El modelo etiquetó un mensaje en chino como inglés. Por eso hay una
+> comprobación de escritura que lo desmiente: si el texto está en otro
+> alfabeto, no está en ninguno de los tres, diga lo que diga el modelo.
+
+```bash
+npx tsx scripts/probar-idiomas.mts
+```
 
 ---
 
@@ -103,9 +130,20 @@ Negocio asociado        Clínica Dental Sonrisa (VE)
 
 Tokens de Meta y Vercel: permanentes, no caducan.
 
+> **La clave de AssemblyAI cambió el 1 de septiembre.** La anterior era de
+> una cuenta vieja que quedó deshabilitada, y devolvía `409 Your account is
+> disabled` en transcripción y `401` en el Gateway — mientras el panel de la
+> cuenta buena se veía perfectamente. La pista era el crédito: $49.97 de $50
+> sin tocar, con decenas de transcripciones hechas. **El consumo no salía de
+> esa cuenta.** Si vuelve a pasar, `probar-assemblyai.mts` lo dice en cinco
+> segundos, y hay que mirar de qué cuenta es la clave, no si la cuenta va.
+
 ## Scripts
 
 ```bash
+npx tsx scripts/probar-assemblyai.mts      # ¿va la clave? transcripción y Gateway
+npx tsx scripts/probar-idiomas.mts         # los cinco idiomas contra el agente real
+npx tsx scripts/exportar-conversacion.mts  # vuelca la conversación a Markdown
 npx tsx scripts/diagnostico-whatsapp.mts   # rastrea los últimos mensajes
 npx tsx scripts/agenda.mts                 # citas próximas por negocio
 npx tsx scripts/limpiar-agenda.mts         # libera horarios sin perder sesión

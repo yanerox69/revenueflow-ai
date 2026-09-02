@@ -147,6 +147,10 @@ cliente ya tiene una cita y pide otro día, eso es REAGENDAR, no AGENDAR.
 REGLAS INNEGOCIABLES:
 - service_id debe ser un id EXACTO del catálogo que se te entrega. Si ninguno
   corresponde con claridad, devuelve null. NUNCA inventes un id.
+- EL CATÁLOGO ESTÁ EN EL IDIOMA DEL NEGOCIO Y EL CLIENTE PUEDE ESCRIBIR EN
+  OTRO. Empareja por significado, no por letra: "dental cleaning" y "limpeza
+  dental" son "Limpieza dental". Que el idioma no coincida NO es motivo para
+  devolver null ni para pedir una persona.
 - NO devuelvas fechas ni horas concretas. Solo el día de la semana (weekday)
   y la franja (period). El sistema calcula la fecha real.
 - weekday se responde con el nombre en inglés del día que dijo el cliente:

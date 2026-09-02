@@ -8,6 +8,7 @@ import {
   localeDe,
   normalizarIdioma,
   resolverIdioma,
+  usaOtraEscritura,
   type Idioma,
 } from './idioma';
 import { sendWhatsAppText, type DeliveryStatus } from '@/lib/messaging/whatsapp';
@@ -163,14 +164,28 @@ async function decidirIdioma(
 
   const previo = normalizarIdioma(contact?.language);
 
-  const detectado =
-    input.detectedLanguage != null
+  // Un mensaje escrito en otro alfabeto no está en ninguno de nuestros tres
+  // idiomas, diga lo que diga el modelo. Solo aplica al texto: cuando hay
+  // audio, AssemblyAI devuelve un código real y no hay nada que desmentir.
+  const desmentido =
+    input.detectedLanguage == null && usaOtraEscritura(input.transcription);
+
+  const detectado = desmentido
+    ? null
+    : input.detectedLanguage != null
       ? resolverIdioma({
           detectado: input.detectedLanguage,
           confianza: input.languageConfidence,
           pack,
         })
       : normalizarIdioma(intent.language);
+
+  if (desmentido && normalizarIdioma(intent.language)) {
+    console.warn(
+      `[idioma] el modelo dijo "${intent.language}" para un texto en otra ` +
+        `escritura; se responde en el idioma del país`,
+    );
+  }
 
   // `resolverIdioma` ya cae al idioma del país, así que un audio detectado
   // como "el del país" no se distingue de uno sin detectar. Es aceptable: en
