@@ -186,6 +186,7 @@ describe('Test 15 · El agente no puede inventar un servicio', () => {
     weekday: 4,
     relative_day: 'NONE',
     period: 'AFTERNOON',
+    language: 'es',
     summary: 'Quiere una limpieza el jueves.',
     needs_human: false,
     confidence: 0.9,

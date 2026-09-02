@@ -28,8 +28,8 @@ const OK_RESPONSE = {
   error: null,
 };
 
-describe('Test 9 · El country pack manda sobre la transcripción', () => {
-  it('define el idioma de escucha por país', () => {
+describe('Test 9 · El country pack sugiere, no impone', () => {
+  it('define el idioma de respaldo por país', () => {
     expect(getPack('VE').speechLanguage).toBe('es');
     expect(getPack('BR').speechLanguage).toBe('pt');
   });
@@ -38,22 +38,56 @@ describe('Test 9 · El country pack manda sobre la transcripción', () => {
     const { client, transcribe } = fakeClient(OK_RESPONSE);
     await new AssemblyAITranscriber({ client }).transcribe({
       audio: new Uint8Array([1, 2, 3]),
-      language: 'es',
+      fallbackLanguage: 'es',
     });
 
     const params = transcribe.mock.calls[0][0] as Record<string, unknown>;
 
     // Omitirlo haría que la API caiga a universal-3-pro sin avisar.
     expect(params.speech_models).toEqual(['universal-3-5-pro', 'universal-2']);
-    expect(params.language_code).toBe('es');
     expect(params.punctuate).toBe(true);
+  });
+
+  it('detecta el idioma en vez de imponerlo', async () => {
+    // Con `language_code` fijo, un cliente que hablara otro idioma se
+    // transcribía mal y en silencio. Ahora se detecta.
+    const { client, transcribe } = fakeClient(OK_RESPONSE);
+    await new AssemblyAITranscriber({ client }).transcribe({
+      audio: new Uint8Array([1]),
+      fallbackLanguage: 'es',
+      expectedLanguages: ['es', 'pt', 'en'],
+    });
+
+    const params = transcribe.mock.calls[0][0] as Record<string, unknown>;
+    const opts = params.language_detection_options as Record<string, unknown>;
+
+    expect(params.language_detection).toBe(true);
+    expect(params).not.toHaveProperty('language_code');
+    expect(opts.expected_languages).toEqual(['es', 'pt', 'en']);
+    expect(opts.fallback_language).toBe('es');
+  });
+
+  it('una nota con ruido cae al idioma del país en vez de fallar entera', () => {
+    // El valor por defecto de la API es "error". Perder el acento es
+    // recuperable; perder el mensaje del cliente, no.
+    const { client, transcribe } = fakeClient(OK_RESPONSE);
+    return new AssemblyAITranscriber({ client })
+      .transcribe({ audio: new Uint8Array([1]), fallbackLanguage: 'pt' })
+      .then(() => {
+        const params = transcribe.mock.calls[0][0] as Record<string, unknown>;
+        const opts = params.language_detection_options as Record<string, unknown>;
+
+        expect(opts.on_low_language_confidence).toBe('fallback');
+        expect(opts.code_switching).toBe(true);
+        expect(opts.fallback_language).toBe('pt');
+      });
   });
 
   it('pasa prompt y keyterms cuando se aportan', async () => {
     const { client, transcribe } = fakeClient(OK_RESPONSE);
     await new AssemblyAITranscriber({ client }).transcribe({
       audio: new Uint8Array([1]),
-      language: 'es',
+      fallbackLanguage: 'es',
       prompt: 'Nota de voz de un cliente a una clínica dental.',
       keyterms: ['Limpieza dental', 'Blanqueamiento'],
     });
@@ -67,7 +101,7 @@ describe('Test 9 · El country pack manda sobre la transcripción', () => {
     const { client, transcribe } = fakeClient(OK_RESPONSE);
     await new AssemblyAITranscriber({ client }).transcribe({
       audio: new Uint8Array([1]),
-      language: 'es',
+      fallbackLanguage: 'es',
       keyterms: [],
     });
 
@@ -79,7 +113,7 @@ describe('Test 9 · El country pack manda sobre la transcripción', () => {
     const { client } = fakeClient(OK_RESPONSE);
     const result = await new AssemblyAITranscriber({ client }).transcribe({
       audio: new Uint8Array([1]),
-      language: 'es',
+      fallbackLanguage: 'es',
     });
 
     expect(result.text).toContain('limpieza dental');
@@ -101,7 +135,7 @@ describe('Test 10 · La transcripción falla de forma explícita', () => {
     await expect(
       new AssemblyAITranscriber({ client }).transcribe({
         audio: new Uint8Array([1]),
-        language: 'es',
+        fallbackLanguage: 'es',
       }),
     ).rejects.toThrow(TranscriptionError);
   });
@@ -118,7 +152,7 @@ describe('Test 10 · La transcripción falla de forma explícita', () => {
     await expect(
       new AssemblyAITranscriber({ client }).transcribe({
         audio: new Uint8Array([1]),
-        language: 'es',
+        fallbackLanguage: 'es',
       }),
     ).rejects.toThrow(/network down/);
   });

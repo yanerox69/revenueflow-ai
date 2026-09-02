@@ -46,7 +46,7 @@ const started = Date.now();
 try {
   const result = await new AssemblyAITranscriber().transcribe({
     audio,
-    language: pack.speechLanguage,
+    fallbackLanguage: pack.speechLanguage,
     contentType: 'audio/wav',
     prompt: context.prompt,
     keyterms: context.keyterms,

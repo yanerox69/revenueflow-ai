@@ -4,6 +4,7 @@ import { getPack } from '@/lib/country';
 import { AssemblyAITranscriber } from '@/lib/voice/assemblyai';
 import { buildVoiceContext } from '@/lib/voice/context';
 import { TranscriptionError, type Transcriber } from '@/lib/voice/types';
+import { idiomasEsperados } from '@/lib/agent/idioma';
 
 export interface IncomingVoiceNote {
   tenantId: string;
@@ -40,6 +41,8 @@ export interface IngestResult {
    */
   transcription: string | null;
   detectedLanguage: string | null;
+  /** 0–1 sobre el idioma detectado. Null cuando no hubo audio. */
+  languageConfidence: number | null;
   confidence: number | null;
   durationSeconds: number | null;
   languageMismatch: boolean;
@@ -88,6 +91,7 @@ export async function ingestTextMessage(msg: IncomingText): Promise<IngestResult
       contactId: conv?.contact_id ?? '',
       transcription: existing.body,
       detectedLanguage: null,
+      languageConfidence: null,
       confidence: null,
       durationSeconds: null,
       languageMismatch: false,
@@ -136,6 +140,7 @@ export async function ingestTextMessage(msg: IncomingText): Promise<IngestResult
     contactId,
     transcription: texto || null,
     detectedLanguage: null,
+    languageConfidence: null,
     confidence: null,
     durationSeconds: null,
     languageMismatch: false,
@@ -170,7 +175,9 @@ export async function ingestVoiceNote(
   // --- Idempotencia: si ya vimos este mensaje, no volvemos a transcribir ----
   const { data: existing } = await db
     .from('messages')
-    .select('id, conversation_id, transcription, detected_language, transcription_confidence, duration_seconds')
+    // En una sola línea a propósito: Supabase infiere los tipos del literal,
+    // y partirlo con `+` lo convierte en un string opaco que no sabe leer.
+    .select('id, conversation_id, transcription, detected_language, language_confidence, transcription_confidence, duration_seconds')
     .eq('tenant_id', tenant.id)
     .eq('external_id', note.externalId)
     .maybeSingle();
@@ -189,6 +196,7 @@ export async function ingestVoiceNote(
       contactId: conv?.contact_id ?? '',
       transcription: existing.transcription,
       detectedLanguage: existing.detected_language,
+      languageConfidence: existing.language_confidence,
       confidence: existing.transcription_confidence,
       durationSeconds: existing.duration_seconds,
       languageMismatch: false,
@@ -235,7 +243,8 @@ export async function ingestVoiceNote(
 
     const result = await transcriber.transcribe({
       audio: note.audio,
-      language: pack.speechLanguage,
+      fallbackLanguage: pack.speechLanguage,
+      expectedLanguages: idiomasEsperados(pack),
       contentType: note.contentType,
       prompt: context.prompt,
       keyterms: context.keyterms,
@@ -243,7 +252,8 @@ export async function ingestVoiceNote(
 
     // El proveedor puede detectar un idioma distinto al del país del tenant.
     // No es un error: un cliente brasileño puede escribirle a un negocio
-    // venezolano. Se marca para que el agente responda en el idioma correcto.
+    // venezolano. Se marca para que el panel lo muestre; quien decide en qué
+    // idioma se responde es `resolverIdioma`.
     const languageMismatch =
       result.detectedLanguage != null &&
       !result.detectedLanguage.startsWith(pack.speechLanguage);
@@ -256,6 +266,7 @@ export async function ingestVoiceNote(
         transcription_status: 'DONE',
         transcription_confidence: result.confidence,
         detected_language: result.detectedLanguage,
+        language_confidence: result.languageConfidence,
         duration_seconds: result.durationSeconds,
         provider_job_id: result.providerJobId,
       })
@@ -280,6 +291,7 @@ export async function ingestVoiceNote(
       contactId,
       transcription: result.text,
       detectedLanguage: result.detectedLanguage,
+      languageConfidence: result.languageConfidence,
       confidence: result.confidence,
       durationSeconds: result.durationSeconds,
       languageMismatch,

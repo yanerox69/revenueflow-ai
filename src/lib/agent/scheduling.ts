@@ -212,6 +212,8 @@ export function describeSlot(when: Date, timeZone: string, locale: string): stri
     month: 'long',
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true,
+    // Sin `hour12`: lo decide el locale. Venezuela dice "1:00 p. m." y
+    // Brasil dice "13:00"; forzarlo a 12 horas era un venezolanismo
+    // escondido en una función que no debería saber de países.
   }).format(when);
 }

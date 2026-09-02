@@ -49,9 +49,25 @@ export class AssemblyAITranscriber implements Transcriber {
     const params: Record<string, unknown> = {
       audio,
       speech_models: SPEECH_MODELS,
-      language_code: req.language,
       punctuate: true,
       format_text: true,
+
+      // Detectar en vez de imponer. Con `language_code` fijo, un cliente que
+      // hablara otro idioma se transcribía mal y sin avisar.
+      language_detection: true,
+      language_detection_options: {
+        expected_languages: req.expectedLanguages ?? [req.fallbackLanguage],
+        fallback_language: req.fallbackLanguage,
+
+        // Notas de voz mixtas ("necesito un check-up para el jueves") son
+        // lo normal aquí. Universal-3.5 Pro las maneja de forma nativa.
+        code_switching: true,
+
+        // El valor por defecto es "error": una nota con ruido de fondo
+        // fallaría entera en vez de caer al idioma del país. Perder el
+        // acento es recuperable; perder el mensaje del cliente, no.
+        on_low_language_confidence: 'fallback',
+      },
     };
 
     if (req.prompt) params.prompt = req.prompt;
@@ -77,6 +93,7 @@ export class AssemblyAITranscriber implements Transcriber {
       text: (transcript.text ?? '').trim(),
       confidence: transcript.confidence ?? null,
       detectedLanguage: transcript.language_code ?? null,
+      languageConfidence: transcript.language_confidence ?? null,
       durationSeconds: transcript.audio_duration ?? null,
       providerJobId: transcript.id,
     };

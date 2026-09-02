@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getPack } from '@/lib/country';
 import { composeFollowUp, composeReminder } from './reply';
+import { idiomaDelPais, normalizarIdioma } from './idioma';
 import { describeSlot } from './scheduling';
 import { sendWhatsAppText } from '@/lib/messaging/whatsapp';
 
@@ -24,10 +25,19 @@ interface CitaPendiente {
   id: string;
   tenant_id: string;
   starts_at: string;
-  contacts: { phone_e164: string } | null;
+  contacts: { phone_e164: string; language: string | null } | null;
   services: { name: string } | null;
   tenants: { country_code: string; locale: string } | null;
 }
+
+/**
+ * Estas dos tandas salen de un cron, sin ningún mensaje entrante del que
+ * deducir el idioma. Por eso el idioma vive en el contacto: es lo único
+ * disponible a las nueve de la mañana.
+ */
+const SELECCION =
+  'id, tenant_id, starts_at, contacts(phone_e164, language), services(name), ' +
+  'tenants(country_code, locale)';
 
 /**
  * Procesa una tanda de recordatorios y seguimientos.
@@ -47,9 +57,7 @@ export async function procesarRecordatorios(): Promise<ResultadoTanda> {
 
   const { data: proximas } = await db
     .from('appointments')
-    .select(
-      'id, tenant_id, starts_at, contacts(phone_e164), services(name), tenants(country_code, locale)',
-    )
+    .select(SELECCION)
     .in('status', ['SCHEDULED', 'CONFIRMED'])
     .is('reminder_sent_at', null)
     .gt('starts_at', ahora.toISOString())
@@ -60,7 +68,7 @@ export async function procesarRecordatorios(): Promise<ResultadoTanda> {
 
   for (const cita of (proximas ?? []) as unknown as CitaPendiente[]) {
     try {
-      const { pack, servicio, telefono } = datosDe(cita);
+      const { pack, servicio, telefono, idioma } = datosDe(cita);
       const cuando = describeSlot(
         new Date(cita.starts_at),
         pack.timezone,
@@ -70,7 +78,7 @@ export async function procesarRecordatorios(): Promise<ResultadoTanda> {
       await enviarYRegistrar(
         db,
         cita,
-        composeReminder(servicio, cuando, pack),
+        composeReminder(servicio, cuando, pack, idioma),
         telefono,
         'reminder_sent_at',
       );
@@ -85,9 +93,7 @@ export async function procesarRecordatorios(): Promise<ResultadoTanda> {
 
   const { data: pasadas } = await db
     .from('appointments')
-    .select(
-      'id, tenant_id, starts_at, contacts(phone_e164), services(name), tenants(country_code, locale)',
-    )
+    .select(SELECCION)
     .is('follow_up_sent_at', null)
     .not('status', 'eq', 'CANCELLED')
     .lt('ends_at', corte.toISOString())
@@ -97,12 +103,12 @@ export async function procesarRecordatorios(): Promise<ResultadoTanda> {
 
   for (const cita of (pasadas ?? []) as unknown as CitaPendiente[]) {
     try {
-      const { pack, servicio, telefono } = datosDe(cita);
+      const { pack, servicio, telefono, idioma } = datosDe(cita);
 
       await enviarYRegistrar(
         db,
         cita,
-        composeFollowUp(servicio, pack),
+        composeFollowUp(servicio, pack, idioma),
         telefono,
         'follow_up_sent_at',
       );
@@ -121,10 +127,14 @@ function datosDe(cita: CitaPendiente) {
   if (!cita.tenants) throw new Error('cita sin tenant');
   if (!cita.contacts?.phone_e164) throw new Error('contacto sin teléfono');
 
+  const pack = getPack(cita.tenants.country_code);
+
   return {
-    pack: getPack(cita.tenants.country_code),
+    pack,
     servicio: cita.services?.name ?? 'tu cita',
     telefono: cita.contacts.phone_e164,
+    // Lo aprendido de sus mensajes. Si nunca escribió, el del país.
+    idioma: normalizarIdioma(cita.contacts.language) ?? idiomaDelPais(pack),
   };
 }
 

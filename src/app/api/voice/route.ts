@@ -103,6 +103,8 @@ export async function POST(request: Request) {
             conversationId: ingest.conversationId,
             messageId: ingest.messageId,
             transcription: ingest.transcription,
+            detectedLanguage: ingest.detectedLanguage,
+            languageConfidence: ingest.languageConfidence,
           },
           { onIntent: () => send({ stage: 'SCHEDULING' }) },
         );

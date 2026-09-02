@@ -128,6 +128,8 @@ async function processPayload(payload: WhatsAppPayload) {
             conversationId: ingest.conversationId,
             messageId: ingest.messageId,
             transcription: ingest.transcription,
+            detectedLanguage: ingest.detectedLanguage,
+            languageConfidence: ingest.languageConfidence,
           });
         }
       }

@@ -3,6 +3,13 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getPack, type CountryPack } from '@/lib/country';
 import { extractIntent, type ExtractedIntent, type Turno } from './intent';
 import { composeReply } from './reply';
+import {
+  idiomaDelPais,
+  localeDe,
+  normalizarIdioma,
+  resolverIdioma,
+  type Idioma,
+} from './idioma';
 import { sendWhatsAppText, type DeliveryStatus } from '@/lib/messaging/whatsapp';
 import {
   describeSlot,
@@ -41,6 +48,8 @@ export interface AgentResult {
   outcome: AgentOutcome;
   leadId: string | null;
   reply: AgentReply;
+  /** En qué idioma se le acabó respondiendo. */
+  idioma: Idioma;
 }
 
 export interface HandleInput {
@@ -49,6 +58,9 @@ export interface HandleInput {
   conversationId: string;
   messageId: string;
   transcription: string;
+  /** Lo que detectó el transcriptor. Ausente si el cliente escribió. */
+  detectedLanguage?: string | null;
+  languageConfidence?: number | null;
 }
 
 export interface HandleOptions {
@@ -113,13 +125,65 @@ export async function handleVoiceNote(
 
   options.onIntent?.(intent);
 
+  const idioma = await decidirIdioma(db, input, pack, intent);
+
   const leadId = await upsertLead(db, input, intent, catalog);
   const outcome = await decide(
-    db, input, tenant.id, tenant.locale, pack, intent, catalog, leadId, now, vigente,
+    db, input, tenant.id, localeDe(idioma, pack), pack, intent, catalog, leadId, now, vigente,
   );
-  const reply = await respond(db, input, tenant.id, pack, outcome);
+  const reply = await respond(db, input, tenant.id, pack, outcome, idioma);
 
-  return { intent, outcome, leadId, reply };
+  return { intent, outcome, leadId, reply, idioma };
+}
+
+/**
+ * En qué idioma se le responde a este cliente.
+ *
+ * Hay dos detectores y no dicen lo mismo. El orden no es arbitrario:
+ *
+ * 1. **AssemblyAI**, si hubo audio. Es su especialidad y trae una confianza
+ *    con la que se puede descartar una detección dudosa.
+ * 2. **El modelo**, que es lo único que hay cuando el cliente escribe.
+ * 3. **Lo que ya sabíamos del contacto.** Un mensaje de tres palabras
+ *    ("mejor el viernes") no da para detectar nada, y sería absurdo cambiarle
+ *    el idioma a mitad de conversación por eso.
+ * 4. **El idioma del país**, que es el que el negocio sabe atender.
+ */
+async function decidirIdioma(
+  db: Db,
+  input: HandleInput,
+  pack: CountryPack,
+  intent: ExtractedIntent,
+): Promise<Idioma> {
+  const { data: contact } = await db
+    .from('contacts')
+    .select('language')
+    .eq('id', input.contactId)
+    .maybeSingle();
+
+  const previo = normalizarIdioma(contact?.language);
+
+  const detectado =
+    input.detectedLanguage != null
+      ? resolverIdioma({
+          detectado: input.detectedLanguage,
+          confianza: input.languageConfidence,
+          pack,
+        })
+      : normalizarIdioma(intent.language);
+
+  // `resolverIdioma` ya cae al idioma del país, así que un audio detectado
+  // como "el del país" no se distingue de uno sin detectar. Es aceptable: en
+  // ambos casos responder en el idioma del país es lo correcto.
+  const idioma = detectado ?? previo ?? idiomaDelPais(pack);
+
+  // Se recuerda para los recordatorios, que salen de un cron sin ningún
+  // mensaje entrante que mirar.
+  if (idioma !== previo) {
+    await db.from('contacts').update({ language: idioma }).eq('id', input.contactId);
+  }
+
+  return idioma;
 }
 
 type Db = ReturnType<typeof createSupabaseAdminClient>;
@@ -155,7 +219,9 @@ async function decide(
       return {
         kind: 'CONFIRMED',
         appointmentId: vigente.id,
-        label: vigente.label,
+        // Se vuelve a formatear: `vigente.label` se calculó antes de saber
+        // en qué idioma habla el cliente, con el locale del negocio.
+        label: describeSlot(new Date(vigente.startsAt), pack.timezone, locale),
         serviceName: vigente.servicio,
       };
     }
@@ -269,8 +335,9 @@ async function respond(
   tenantId: string,
   pack: CountryPack,
   outcome: AgentOutcome,
+  idioma: Idioma,
 ): Promise<AgentReply> {
-  const text = composeReply(outcome, pack);
+  const text = composeReply(outcome, pack, idioma);
 
   const [{ data: contact }, { data: settings }] = await Promise.all([
     db.from('contacts').select('phone_e164').eq('id', input.contactId).single(),

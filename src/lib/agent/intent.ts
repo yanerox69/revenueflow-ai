@@ -47,6 +47,12 @@ export interface ExtractedIntent {
   summary: string;
   needs_human: boolean;
   confidence: number;
+  /**
+   * Idioma en el que escribió el cliente. Solo se usa para mensajes de
+   * TEXTO: cuando hay audio manda la detección de AssemblyAI, que trae
+   * confianza y es su especialidad. 'OTRO' si no es ninguno de los tres.
+   */
+  language: 'es' | 'pt' | 'en' | 'OTRO';
 }
 
 export interface ServiceOption {
@@ -103,6 +109,15 @@ const SCHEMA = {
       summary: { type: 'string', description: 'Una frase, en el idioma del cliente.' },
       needs_human: { type: 'boolean' },
       confidence: { type: 'number', minimum: 0, maximum: 1 },
+      // Enum y no texto libre, por lo mismo que weekday: a un modelo pequeño
+      // se le pide señalar, no escribir. Con texto libre devolvería
+      // "español", "Spanish" o "es-VE" según el día.
+      language: {
+        type: 'string',
+        enum: ['es', 'pt', 'en', 'OTRO'],
+        description:
+          'Idioma en el que escribió el cliente. OTRO si no es ninguno de esos tres.',
+      },
     },
     required: [
       'service_id',
@@ -114,6 +129,7 @@ const SCHEMA = {
       'summary',
       'needs_human',
       'confidence',
+      'language',
     ],
   },
 } as const;
@@ -143,7 +159,9 @@ REGLAS INNEGOCIABLES:
 - needs_human = true si hay una queja, un reclamo, un tema de dinero o pagos,
   un asunto médico delicado, o si simplemente no entiendes qué pide.
 - confidence refleja tu seguridad sobre la intención, de 0 a 1.
-- summary va en el mismo idioma que habló el cliente.`;
+- summary va en el mismo idioma que habló el cliente.
+- language es el idioma del MENSAJE NUEVO, no el del país ni el del historial.
+  Un cliente puede cambiar de idioma a mitad de conversación.`;
 
 export interface ExtractIntentInput {
   transcription: string;
@@ -166,7 +184,9 @@ export async function extractIntent(input: ExtractIntentInput): Promise<Extracte
     : '(el negocio no tiene servicios cargados)';
 
   const user = [
-    `Idioma del cliente: ${input.pack.speechLanguage}`,
+    // Se le da como pista, no como hecho: el idioma del país es lo más
+    // probable, pero quien decide es el mensaje que tiene delante.
+    `Idioma más frecuente en este país: ${input.pack.speechLanguage}`,
     `País: ${input.pack.displayName}`,
     `Fecha y hora local del negocio: ${input.nowLocalISO}`,
     '',
@@ -260,6 +280,9 @@ const IntentSchema = z.object({
   summary: z.string().catch(''),
   needs_human: z.boolean().catch(true),
   confidence: z.number().catch(0),
+  // Si el modelo no lo devuelve o lo devuelve mal, 'OTRO' hace que se caiga
+  // al idioma del país. Nunca es motivo para escalar a una persona.
+  language: z.enum(['es', 'pt', 'en', 'OTRO']).catch('OTRO'),
 });
 
 export function parseIntent(raw: unknown): ExtractedIntent {
@@ -276,6 +299,7 @@ export function parseIntent(raw: unknown): ExtractedIntent {
       summary: 'No se pudo interpretar el mensaje.',
       needs_human: true,
       confidence: 0,
+      language: 'OTRO',
     };
   }
 
