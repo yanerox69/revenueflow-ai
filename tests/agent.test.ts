@@ -181,6 +181,7 @@ describe('Test 15 · El agente no puede inventar un servicio', () => {
 
   const base: ExtractedIntent = {
     service_id: 'svc-1',
+    service_name: 'Limpieza dental',
     intent: 'AGENDAR',
     urgency: 'NORMAL',
     weekday: 4,
@@ -196,14 +197,24 @@ describe('Test 15 · El agente no puede inventar un servicio', () => {
     expect(sanitizeIntent(base, services).service_id).toBe('svc-1');
   });
 
+  // Estos dos van con service_name en null a propósito: aíslan la vía del
+  // id. Con un nombre válido, el rescate por nombre entra en juego y ya no
+  // se estaría probando lo que dice el título. Eso se prueba aparte, en
+  // servicio.test.ts.
   it('descarta un id inventado y escala a un humano', () => {
-    const result = sanitizeIntent({ ...base, service_id: 'svc-999' }, services);
+    const result = sanitizeIntent(
+      { ...base, service_id: 'svc-999', service_name: null },
+      services,
+    );
     expect(result.service_id).toBeNull();
     expect(result.needs_human).toBe(true); // no se agenda a ciegas
   });
 
   it('no escala si el modelo dijo honestamente que no hay servicio', () => {
-    const result = sanitizeIntent({ ...base, service_id: null }, services);
+    const result = sanitizeIntent(
+      { ...base, service_id: null, service_name: null },
+      services,
+    );
     expect(result.service_id).toBeNull();
     expect(result.needs_human).toBe(false);
   });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { completeJson } from './llm-gateway';
+import { resolverServicio } from './servicio';
 import type { CountryPack } from '@/lib/country';
 
 export type IntentKind =
@@ -38,6 +39,14 @@ export type RelativeDay = 'TODAY' | 'TOMORROW' | 'THIS_WEEK' | 'NEXT_WEEK' | 'NO
 export interface ExtractedIntent {
   /** Debe ser un id del catálogo del tenant, o null. Nunca inventado. */
   service_id: string | null;
+  /**
+   * El servicio en las palabras del cliente.
+   *
+   * Existe para poder contrastar `service_id`, que es un UUID opaco: si el
+   * modelo se equivoca de id, no hay forma de notarlo. Dos respuestas sobre
+   * lo mismo sí se pueden contradecir.
+   */
+  service_name: string | null;
   intent: IntentKind;
   urgency: 'LOW' | 'NORMAL' | 'HIGH' | 'EMERGENCY';
   /** 0 = domingo … 6 = sábado. null si el cliente no mencionó día. */
@@ -74,6 +83,12 @@ const SCHEMA = {
       service_id: {
         type: ['string', 'null'],
         description: 'Id EXACTO del catálogo, o null si ninguno corresponde.',
+      },
+      service_name: {
+        type: ['string', 'null'],
+        description:
+          'El servicio que pidió el cliente, con SUS palabras, tal como lo ' +
+          'dijo. No lo traduzcas ni lo cambies por el nombre del catálogo.',
       },
       intent: {
         type: 'string',
@@ -121,6 +136,7 @@ const SCHEMA = {
     },
     required: [
       'service_id',
+      'service_name',
       'intent',
       'urgency',
       'weekday',
@@ -151,6 +167,9 @@ REGLAS INNEGOCIABLES:
   OTRO. Empareja por significado, no por letra: "dental cleaning" y "limpeza
   dental" son "Limpieza dental". Que el idioma no coincida NO es motivo para
   devolver null ni para pedir una persona.
+- service_name va con LAS PALABRAS DEL CLIENTE, sin traducir. Si dijo
+  "limpeza dental", escribe "limpeza dental", aunque el catálogo lo llame
+  "Limpieza dental". Es la comprobación de que el id es el correcto.
 - NO devuelvas fechas ni horas concretas. Solo el día de la semana (weekday)
   y la franja (period). El sistema calcula la fecha real.
 - weekday se responde con el nombre en inglés del día que dijo el cliente:
@@ -270,6 +289,7 @@ export const WEEKDAY_INDEX: Record<string, number> = {
 
 const IntentSchema = z.object({
   service_id: z.string().nullable().catch(null),
+  service_name: z.string().nullable().catch(null),
   intent: z.enum(INTENCIONES as [IntentKind, ...IntentKind[]]).catch('OTRO'),
   urgency: z.enum(['LOW', 'NORMAL', 'HIGH', 'EMERGENCY']).catch('NORMAL'),
   // El modelo manda un símbolo; aquí se traduce a índice.
@@ -295,6 +315,7 @@ export function parseIntent(raw: unknown): ExtractedIntent {
   if (!parsed.success) {
     return {
       service_id: null,
+      service_name: null,
       intent: 'OTRO',
       urgency: 'NORMAL',
       weekday: null,
@@ -314,6 +335,10 @@ export function parseIntent(raw: unknown): ExtractedIntent {
  * Segunda barrera: aunque el esquema lo restrinja, verificamos que el id
  * exista de verdad. Un modelo puede devolver un id con formato válido pero
  * inexistente, y eso terminaría agendando un servicio fantasma.
+ *
+ * Y una tercera: que el id concuerde con el nombre que el propio modelo
+ * dijo haber entendido. Un id inexistente se detecta solo; uno existente
+ * pero equivocado, no — hasta que el cliente llega a la cita.
  */
 export function sanitizeIntent(
   intent: ExtractedIntent,
@@ -321,14 +346,24 @@ export function sanitizeIntent(
 ): ExtractedIntent {
   const valid = new Set(services.map((s) => s.id));
 
-  const serviceId =
+  const existe =
     intent.service_id && valid.has(intent.service_id) ? intent.service_id : null;
+
+  const resolucion = resolverServicio({
+    id: existe,
+    nombre: intent.service_name,
+    catalogo: services,
+  });
+
+  if (resolucion.detalle) {
+    console.warn(`[servicio] ${resolucion.detalle}`);
+  }
 
   return {
     ...intent,
-    service_id: serviceId,
+    service_id: resolucion.serviceId,
     // Si el modelo alucinó un servicio, no confiamos en el resto tampoco.
-    needs_human: intent.needs_human || (intent.service_id != null && serviceId == null),
+    needs_human: intent.needs_human || (intent.service_id != null && existe == null),
     confidence: clamp01(intent.confidence),
     weekday:
       intent.weekday != null && intent.weekday >= 0 && intent.weekday <= 6

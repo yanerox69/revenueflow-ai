@@ -1,4 +1,4 @@
-# Continuar aquí
+﻿# Continuar aquí
 
 Estado al 31 de agosto de 2026.
 
@@ -14,7 +14,7 @@ Estado al 31 de agosto de 2026.
 | **Idioma del cliente** | responde en es / pt / en, no en el del país |
 | **Panel** | citas, conversaciones, confirmaciones y cierre de citas |
 | Repositorio | público, MIT, despliegue continuo |
-| Tests | **155** |
+| Tests | **169** |
 | Video | `Desktop\Saas\video\RevenueFlow.mp4` · 3:40 |
 | Slides | `Desktop\Saas\video\slides\RevenueFlow-slides.pdf` |
 | Límites de uso | activos |
@@ -38,13 +38,17 @@ y se detiene.**
 Responde en **español, portugués o inglés**, según cómo le escriban — no
 según el país del negocio. Probado con cinco idiomas contra el agente real:
 
-| Cliente escribe en | Responde en | Agenda |
-|---|---|---|
-| portugués | portugués, con fecha en portugués | sí |
-| inglés | inglés | sí |
-| español | español venezolano | sí |
-| **ruso** | español | **sí** |
-| **mandarín** | español | **sí** |
+| Cliente habla en | Responde en | Agenda | Probado con |
+|---|---|---|---|
+| portugués | portugués, fecha en portugués, 24 h | sí | **audio** (99,5 %) y texto |
+| inglés | inglés | sí | **audio** (99,7 %) y texto |
+| español | español venezolano | sí | audio y texto |
+| **ruso** | español | **sí** | texto |
+| **mandarín** | español | **sí** | texto |
+
+Las notas de voz de prueba se generan con
+`scripts/generar-nota-voz.ps1 -Idioma pt-BR -Texto "…"`. Usa WinRT y no
+System.Speech, que solo ve un subconjunto de las voces instaladas.
 
 Los dos últimos son el caso importante: entender no depende de saber
 responder. Se transcribe y se agenda igual, y la respuesta sale en el idioma
@@ -54,6 +58,27 @@ fecha y hora exactas, y ahí una alucinación es una cita perdida.
 > El modelo etiquetó un mensaje en chino como inglés. Por eso hay una
 > comprobación de escritura que lo desmiente: si el texto está en otro
 > alfabeto, no está en ninguno de los tres, diga lo que diga el modelo.
+
+### Dos veces eligió mal el servicio
+
+Pidiendo *limpeza dental* reservó **Blanqueamiento**; en otra corrida,
+*Consulta de valoración*. El id era válido y existía en el catálogo — solo
+estaba mal. Es el fallo más caro que puede tener esto: alguien pide una
+limpieza y le reservan otra cosa.
+
+El modelo devuelve ahora **también el nombre** del servicio, con las palabras
+del cliente. Un UUID solo no se puede contrastar; dos respuestas sobre lo
+mismo sí se contradicen:
+
+```
+id  a5832c80…  → catálogo dice "Blanqueamiento"
+nombre         → "limpeza dental"
+                        ↕ no concuerdan → gana el nombre
+```
+
+Gana el nombre porque está anclado en lo que dijo el cliente. Si el nombre no
+distingue nada («una cita»), se conserva el id: cambiar un error por otro no
+es mejorar.
 
 ```bash
 npx tsx scripts/probar-idiomas.mts
