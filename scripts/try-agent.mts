@@ -75,9 +75,17 @@ const ingest = await ingestVoiceNote({
 console.log('─'.repeat(66));
 console.log('TRANSCRIPCIÓN');
 console.log(`  ${ingest.transcription}`);
-console.log(`  idioma ${ingest.detectedLanguage} · confianza ${
+console.log(`  idioma ${ingest.detectedLanguage} (confianza ${
+  ingest.languageConfidence != null
+    ? (ingest.languageConfidence * 100).toFixed(1) + '%'
+    : 'n/d'
+}) · transcripción ${
   ingest.confidence != null ? (ingest.confidence * 100).toFixed(1) + '%' : 'n/d'
 } · ${ingest.durationSeconds}s`);
+
+if (ingest.languageMismatch) {
+  console.log(`  ⚠ el cliente no habla el idioma del país (${pack.speechLanguage})`);
+}
 
 if (!ingest.transcription) {
   console.error('\nNo hubo texto que procesar.');
@@ -90,6 +98,8 @@ const agent = await handleVoiceNote({
   conversationId: ingest.conversationId,
   messageId: ingest.messageId,
   transcription: ingest.transcription,
+  detectedLanguage: ingest.detectedLanguage,
+  languageConfidence: ingest.languageConfidence,
 });
 
 console.log('─'.repeat(66));
@@ -98,6 +108,9 @@ console.log(`  intención   ${agent.intent.intent}`);
 console.log(`  servicio    ${agent.intent.service_id ?? '(ninguno)'}`);
 console.log(`  día semana  ${agent.intent.weekday ?? '(no dijo)'}   franja ${agent.intent.period}`);
 console.log(`  urgencia    ${agent.intent.urgency}`);
+console.log(`  responde en ${agent.idioma}${
+  agent.idioma === pack.speechLanguage ? '' : `  (el país habla ${pack.speechLanguage})`
+}`);
 console.log(`  confianza   ${(agent.intent.confidence * 100).toFixed(0)}%`);
 console.log(`  resumen     ${agent.intent.summary}`);
 
