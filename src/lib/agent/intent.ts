@@ -244,14 +244,31 @@ export async function extractIntent(input: ExtractIntentInput): Promise<Extracte
       fetchImpl: input.fetchImpl,
     });
 
+  /**
+   * El proveedor también se cae, no solo se equivoca.
+   *
+   * Estaba protegido el caso de "el modelo contesta mal" pero no el de "el
+   * modelo no contesta": un 500 del Gateway subía como excepción y mataba al
+   * agente, y el cliente se quedaba sin ninguna respuesta. Silencio es la
+   * peor salida posible — peor que escalar, porque nadie se entera.
+   */
+  const pedirSinReventar = async (): Promise<unknown> => {
+    try {
+      return await pedir();
+    } catch (e) {
+      console.error(`[intent] el proveedor falló: ${(e as Error).message}`);
+      return null; // parseIntent lo convierte en una intención que escala
+    }
+  };
+
   // Un modelo pequeño devuelve basura de vez en cuando. Sin reintento, esa
   // vez el cliente recibe "te paso con una persona" y desde fuera parece que
   // el producto no funciona. Un segundo intento cuesta menos que eso.
-  let intent = parseIntent(await pedir());
+  let intent = parseIntent(await pedirSinReventar());
 
   if (esDegradada(intent)) {
     console.warn('[intent] respuesta ilegible del modelo, reintentando una vez');
-    intent = parseIntent(await pedir());
+    intent = parseIntent(await pedirSinReventar());
 
     if (esDegradada(intent)) {
       console.error('[intent] el modelo falló dos veces: se escala a un humano');
