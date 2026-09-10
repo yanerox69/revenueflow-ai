@@ -24,7 +24,7 @@ RevenueFlow: WhatsApp voice receptionist
 *máx. 255 · esto usa 238*
 
 ```
-A WhatsApp voice-note receptionist for Latin American small businesses. A customer sends a voice message in their own language; about seven seconds later the appointment is booked and confirmed. No forms, no menus, nobody waiting on hold.
+A WhatsApp voice-note receptionist for Latin American small businesses. A customer sends a voice message in their own language; seconds later the appointment is booked and confirmed. No forms, no menus, nobody waiting on hold.
 ```
 
 ### Long Description
@@ -33,7 +33,7 @@ A WhatsApp voice-note receptionist for Latin American small businesses. A custom
 ```
 In Latin America, WhatsApp is not a channel — it is the channel. Customers message small businesses there, usually with a voice note. But the person who would answer is the person doing the work: a dentist with their hands in someone's mouth is not replying to WhatsApp. Messages pile up, and the customer books somewhere else.
 
-RevenueFlow answers instead. It transcribes the voice note with AssemblyAI Universal-3.5 Pro, extracts intent through the AssemblyAI LLM Gateway, resolves "el jueves en la tarde" into a real timestamp in the business's timezone, checks actual availability, books the appointment, and replies — in about seven seconds.
+RevenueFlow answers instead. It transcribes the voice note with AssemblyAI Universal-3.5 Pro, extracts intent through the AssemblyAI LLM Gateway, resolves "el jueves en la tarde" into a real timestamp in the business's timezone, checks actual availability, books the appointment, and replies — in seconds, while the customer is still looking at their phone.
 
 Language is detected, not assumed. Detection runs with expected_languages, a country fallback and code_switching for mixed voice notes, and on_low_language_confidence set to fallback, so a noisy note degrades to the country's language instead of failing outright. It answers in Spanish, Portuguese or English — and still books for someone writing in Russian or Mandarin.
 
@@ -66,20 +66,73 @@ WhatsApp API · Tailwind CSS
 
 ---
 
-## Pasos 2 y 3
+## Paso 2 de 3 — Media
 
-Todavía no los he visto. Cuando llegues, pásame una captura y preparo lo que
-pidan. Lo que casi seguro aparece:
+Los tres son **subida de archivo**, no enlaces.
 
 ```
-Live app     https://revenueflow-ai-yanero.vercel.app
-Source       https://github.com/yanerox69/revenueflow-ai
-Video        https://youtu.be/ti3kfZqFXo0
-Presentación video\slides\RevenueFlow-slides.pdf
+Cover Image          Desktop\Saas\video\material\portada.png          2560x1440
+Video Presentation   Desktop\Saas\video\RevenueFlow.mp4               4:18 · 10 MB
+Slide Presentation   Desktop\Saas\video\slides\RevenueFlow-slides.pdf 1,7 MB
 ```
 
-> Vídeo comprobado sin sesión iniciada el 10 de septiembre: carga título,
-> canal y descripción, así que un jurado puede verlo. 4:18, 1080p.
+El vídeo también está en YouTube por si el paso 3 admite enlace:
+`https://youtu.be/ti3kfZqFXo0`
+
+> Comprobado sin sesión iniciada el 10 de septiembre: carga título, canal y
+> descripción, así que un jurado puede verlo.
+
+---
+
+## Paso 3 de 3 — Application
+
+### GitHub Repository
+
+```
+https://github.com/yanerox69/revenueflow-ai
+```
+
+### Demo Application Platform
+
+Desplegable. Es una aplicación web: elige **Web** (o *Web App* / *Website*,
+según cómo lo llamen).
+
+### Demo Application URL
+
+```
+https://revenueflow-ai-yanero.vercel.app
+```
+
+### Additional Information
+*máx. 2000*
+
+```
+HOW TO TRY IT — 30 seconds, no signup
+
+1. Open https://revenueflow-ai-yanero.vercel.app
+2. Log in with:  owner.ve@demo.local  /  demo-Passw0rd!
+3. Press the microphone and speak, in Spanish or English:
+     "Hola, necesito una cita para una limpieza dental. ¿Tienes algo el jueves en la tarde?"
+     "Hi, I need a dental cleaning. Anything Thursday afternoon?"
+4. Watch the stages — transcribing, understanding, checking the calendar — and the appointment appear in the panel below.
+
+A Brazilian business is also seeded: owner.br@demo.local, same password. Same engine, different country: Portuguese, BRL, CNPJ, São Paulo timezone.
+
+ON WHATSAPP — the number is a Meta test number and only delivers to pre-authorised recipients, so judges cannot message it directly. The web recorder above runs the identical pipeline: same transcription, same agent, same database. The video shows the real WhatsApp path end to end, including a four-word follow-up that reschedules the right appointment.
+
+WORTH A LOOK IN THE CODE
+- src/lib/voice/assemblyai.ts — automatic language detection with expected_languages, a country fallback and code_switching; on_low_language_confidence set to fallback so a noisy note degrades instead of failing.
+- src/lib/agent/intent.ts — the schema as a barrier. The model returns a weekday symbol, never a date, and only catalog IDs.
+- src/lib/agent/servicio.ts — the model also returns the service in the customer's own words, so its own ID can be contradicted and corrected.
+- tests/ — 177 tests, including the failures found by running it for real.
+
+DISCLOSURE: this project was built and deployed before the challenge window opened and has been developed further throughout September. The commit history is public and dated.
+```
+
+> **La última línea es opcional y es tu decisión.** Declararlo tú vale más
+> que dejar que lo descubran, pero si lablab confirma en Discord que el
+> trabajo previo se permite sin más, sobra. Si la quitas, el campo baja unos
+> 200 caracteres y no pasa nada.
 
 ---
 
