@@ -9,6 +9,19 @@ y no se envían.
 
 ---
 
+## 0. Dónde se entrega
+
+**https://lablab.ai/ai-hackathons/assemblyai-voice-agent-hackathon**
+
+Lo organiza lablab.ai con AssemblyAI. Del 1 al 30 de septiembre de 2026,
+$10.000 en premios ($5k en efectivo + $5k en créditos).
+
+> Los criterios de puntuación y los campos exactos del formulario no están en
+> la página pública. Este documento está escrito para el formato genérico; al
+> abrir el formulario real, ajústalo a lo que pida.
+
+---
+
 ## 1. Enlaces
 
 ```
