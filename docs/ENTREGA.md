@@ -74,9 +74,12 @@ pidan. Lo que casi seguro aparece:
 ```
 Live app     https://revenueflow-ai-yanero.vercel.app
 Source       https://github.com/yanerox69/revenueflow-ai
-Video        (sube RevenueFlow.mp4 a YouTube como "no listado")
+Video        https://youtu.be/ti3kfZqFXo0
 Presentación video\slides\RevenueFlow-slides.pdf
 ```
+
+> Vídeo comprobado sin sesión iniciada el 10 de septiembre: carga título,
+> canal y descripción, así que un jurado puede verlo. 4:18, 1080p.
 
 ---
 
@@ -125,10 +128,8 @@ same database. The video shows the real WhatsApp path.
       > has been developed further throughout September; the commit history
       > is public."
 
-- [ ] **El vídeo.** El v1 está listo y sirve. El v2 —con WhatsApp real— tiene
-      la narración grabada (`video\Audio3v3.ogg`) y le falta la grabación de
-      pantalla. Si lablab permite editar hasta el cierre: **entrega ya** con
-      el v1 y sustitúyelo si sale el v2.
+- [x] **El vídeo.** ✅ v2 montado y subido: WhatsApp real con el panel al
+      lado, en una sola toma. 4:18, 1080p. `https://youtu.be/ti3kfZqFXo0`
 
 - [ ] **La slide 3** lleva un dato de penetración de WhatsApp sin fuente. O
       se cita o se quita.
