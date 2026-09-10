@@ -226,8 +226,8 @@ export default async function PanelPage() {
 
         <p className="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Los importes se guardan con su tasa y su equivalente: {pack.formatMoney(sample)}.
-          El audio se transcribe en el idioma que dicta el <em>country pack</em>.
-          Un mismo motor, dos mercados.
+          El idioma no lo pone el país: se detecta del cliente, y se le responde
+          en el suyo. Un mismo motor, dos mercados.
         </p>
       </main>
     </div>

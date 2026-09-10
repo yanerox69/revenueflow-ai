@@ -19,7 +19,7 @@ export default function NegocioPage() {
   return (
     <AuthShell
       headline="Un paso más y listo."
-      sub="Con el país, el sistema ya sabe en qué moneda cobrar, qué documento pedir y en qué idioma hablarle a tus clientes."
+      sub="Con el país, el sistema ya sabe en qué moneda cobrar, qué documento pedir y con qué horario trabajar. A cada cliente le responde en el idioma en que escriba."
     >
       <h1 className="text-2xl font-bold tracking-tight">Datos de tu negocio</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
