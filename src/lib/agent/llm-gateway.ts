@@ -104,7 +104,7 @@ export async function completeJson<T>(opts: CompleteJsonOptions): Promise<T> {
     };
   }
 
-  const res = await doFetch(US, {
+  const res = await pedirConEspera(doFetch, {
     method: 'POST',
     headers: { authorization: apiKey, 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -133,6 +133,45 @@ export async function completeJson<T>(opts: CompleteJsonOptions): Promise<T> {
       `El modelo devolvió JSON inválido: ${content.slice(0, 200)}`,
     );
   }
+}
+
+/**
+ * Cuánto esperar antes de cada reintento por límite de peticiones.
+ *
+ * La cuenta gratuita corta a las pocas peticiones seguidas: tres en
+ * veinticinco segundos ya devuelven 429. Dos esperas cortas cubren el caso
+ * real, que es un reintento pisando a la petición anterior.
+ */
+const ESPERAS_MS = [1500, 4000];
+
+/**
+ * Un 429 no es un fallo, es "espera un momento".
+ *
+ * Tratarlo como fallo hacía que el agente escalara a una persona por un
+ * límite de ritmo que se pasa solo en dos segundos. Cualquier otro estado
+ * —incluido un 500— sale tal cual: eso sí es un fallo, y quien llama decide
+ * qué hacer.
+ */
+async function pedirConEspera(
+  doFetch: typeof fetch,
+  init: RequestInit,
+): Promise<Response> {
+  let res = await doFetch(US, init);
+
+  for (const espera of ESPERAS_MS) {
+    if (res.status !== 429) return res;
+
+    // Si el servidor dice cuánto esperar, se le hace caso.
+    const dice = Number(res.headers?.get?.('retry-after'));
+    const ms = Number.isFinite(dice) && dice > 0 ? dice * 1000 : espera;
+
+    console.warn(`[llm] límite de peticiones, esperando ${ms} ms`);
+    await new Promise((r) => setTimeout(r, ms));
+
+    res = await doFetch(US, init);
+  }
+
+  return res;
 }
 
 /** Los modelos sin `response_format` suelen envolver la respuesta en ```json. */

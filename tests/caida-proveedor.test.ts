@@ -92,7 +92,67 @@ describe('Test 34 · El proveedor se cae y el cliente igual recibe respuesta', (
   });
 });
 
-describe('Test 35 · Una respuesta vacía se lee como escalada', () => {
+describe('Test 35 · Un límite de peticiones se espera, no se abandona', () => {
+  // La cuenta gratuita corta a las pocas peticiones seguidas. Escalar a una
+  // persona por un límite que se pasa solo en dos segundos sería tirar la
+  // conversación por nada.
+  function fetchQueLimitaYLuegoVa(veces: number) {
+    let n = 0;
+    return vi.fn(async () => {
+      n++;
+      if (n <= veces) {
+        return {
+          ok: false,
+          status: 429,
+          headers: { get: () => null },
+          text: async () => '{"code":429}',
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  service_id: 'svc-1',
+                  service_name: 'limpieza dental',
+                  intent: 'AGENDAR',
+                  urgency: 'NORMAL',
+                  weekday: 'THURSDAY',
+                  relative_day: 'NONE',
+                  period: 'AFTERNOON',
+                  summary: 'Quiere una limpieza.',
+                  needs_human: false,
+                  confidence: 0.9,
+                  language: 'es',
+                }),
+              },
+            },
+          ],
+        }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+  }
+
+  it('espera y lo consigue en el segundo intento', async () => {
+    const fetchImpl = fetchQueLimitaYLuegoVa(1);
+    const intent = await extractIntent({ ...BASE, fetchImpl });
+
+    expect(intent.intent).toBe('AGENDAR');
+    expect(intent.needs_human).toBe(false);
+    expect(intent.service_id).toBe('svc-1');
+  }, 15_000);
+
+  it('se rinde si el límite no cede, pero escalando en vez de reventar', async () => {
+    const intent = await extractIntent({ ...BASE, fetchImpl: fetchQueLimitaYLuegoVa(99) });
+    expect(intent.needs_human).toBe(true);
+  }, 30_000);
+});
+
+describe('Test 36 · Una respuesta vacía se lee como escalada', () => {
   it('null, undefined y basura dan una intención que pide una persona', () => {
     for (const basura of [null, undefined, 'texto suelto', 42, []]) {
       const intent = parseIntent(basura);
