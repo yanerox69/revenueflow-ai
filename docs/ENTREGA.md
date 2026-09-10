@@ -1,5 +1,12 @@
 # Paquete de entrega — AssemblyAI Voice Agent Hackathon
 
+> ## ✅ ENVIADO el 10 de septiembre de 2026
+>
+> Diecinueve días antes del cierre. Lo que sigue queda como registro de lo
+> que se envió, y como base si hay que editar: lablab guarda el borrador y
+> el formulario se puede volver a abrir hasta el día 30 a las 11 de la
+> mañana.
+
 **https://lablab.ai/ai-hackathons/assemblyai-voice-agent-hackathon**
 
 Del 1 al 30 de septiembre de 2026. $10.000 en premios ($5k efectivo + $5k en

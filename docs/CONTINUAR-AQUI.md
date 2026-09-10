@@ -113,6 +113,16 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
 > El cierre de AssemblyAI es a las **11 de la mañana** del 30. Planificar
 > "entrego el 30" deja fuera. Trabajar con el **29** como fecha real.
 
+## ✅ Entregado el 10 de septiembre
+
+En lablab.ai, con 19 días de margen. Se envió el vídeo v2 (WhatsApp real y el
+panel en una toma, 4:18 en 1080p), las slides, la portada, el repositorio y
+la app en vivo con credenciales de demo para el jurado.
+
+Los textos exactos que se enviaron están en [ENTREGA.md](ENTREGA.md). El
+formulario se puede editar hasta el cierre, así que si algo mejora, se
+cambia allí.
+
 ## Pendientes
 
 - [ ] **¿Se permite trabajo previo al 1 de septiembre?** Es lo único que puede
@@ -127,9 +137,12 @@ Sep 30, 11:00 a. m.   CIERRE AssemblyAI  ← POR LA MAÑANA, no fin del día
       > "My project was already built and deployed before Sept 1. I'll keep
       > developing it during the month. Is prior work allowed, or does
       > everything have to be built inside the window?"
-- [ ] Rehacer el video con WhatsApp real: teléfono mandando notas y el panel
-      actualizándose, incluida la conversación con el reagendado.
-- [ ] Citar la fuente del dato de WhatsApp en la slide 3, o quitarlo.
+- [x] ~~Rehacer el vídeo con WhatsApp real.~~ Hecho: `RevenueFlow.mp4`, 4:18,
+      1080p. `https://youtu.be/ti3kfZqFXo0`
+- [ ] Poner el equipo en **Closed** en lablab. Sigue en *Open*, aceptando
+      solicitudes de desconocidos.
+- [ ] Citar la fuente del dato de WhatsApp en la slide 3, o quitarlo. Ya está
+      entregado, pero las slides se pueden sustituir.
 - [ ] Vigilar el consumo de créditos de AssemblyAI.
 
 ## Ideas si sobra tiempo
