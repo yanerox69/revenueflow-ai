@@ -1,18 +1,28 @@
 /**
- * Monta el audio 3 del vídeo a partir de dos tomas.
+ * Monta el audio 3 del vídeo y lo ajusta a la grabación del demo.
  *
- * La toma larga tiene todo salvo el final: ahí se decía "el agente lee la
- * conversación", que suena idéntico a "la gente" — lo confirmó el propio
- * transcriptor, que no oyó "agente" ni dándole el término como pista. Si el
- * modelo lo oye mal con toda la ayuda a favor, el espectador también puede.
- * El final se regrabó diciendo "RevenueFlow", que no admite confusión.
+ * Tres cosas pasan aquí, y ninguna es cosmética:
  *
- * El empalme cae dentro de una pausa de 1,9 s que ya existía, así que no hay
- * costura que oír.
+ * 1. SE UNEN DOS TOMAS. La larga tiene todo salvo el final, donde se decía
+ *    "el agente lee la conversación" — que suena idéntico a "la gente". Lo
+ *    confirmó el propio transcriptor: no oyó "agente" ni dándole el término
+ *    como pista, ni con contexto de escena. Si el modelo lo oye mal con toda
+ *    la ayuda a favor, el espectador también puede. El final se regrabó
+ *    diciendo "RevenueFlow", que no admite confusión.
  *
- * Las pausas del guion se insertan aquí en vez de grabarlas: pedirle a
- * alguien que cuente cinco segundos en silencio delante de un micrófono no
- * funciona, y salieron de 1,5 s las dos veces.
+ * 2. SE CORTAN DOS FRASES que la grabación desmiente:
+ *      "Menos de diez segundos" — fueron 13,4 s reales, y en pantalla se ven
+ *      23 porque WhatsApp Web tarda en pintar. Un jurado con cronómetro lo
+ *      comprueba.
+ *      "Cuatro palabras" — la nota grabada dice "¿Me podrías cambiar para el
+ *      viernes?", que son seis y llevan la fecha dentro.
+ *    Ninguna de las dos hace falta: lo que queda alrededor sigue siendo
+ *    cierto y se entiende igual.
+ *
+ * 3. LOS SILENCIOS SE MIDEN CONTRA EL VÍDEO. Cada bloque hablado entra justo
+ *    después del suceso que comenta. Pedirle a alguien que cuente cinco
+ *    segundos delante de un micrófono no funciona — salieron de 1,5 s las dos
+ *    veces que se intentó.
  *
  *   npx tsx scripts/montar-audio3.mts
  */
@@ -41,17 +51,6 @@ const ff = (args: string[]) =>
 rmSync(TMP, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
 
-/**
- * Dónde termina cada bloque y cuánto silencio hay antes de la palabra
- * siguiente, según los tiempos que devolvió el transcriptor.
- *
- * El margen que se deja tras la última palabra NO puede pasar de ese hueco,
- * o el corte se come el principio de la palabra de después. Pasó en el
- * primer montaje: con un margen fijo de 0,25 s y un hueco real de 0,03 s,
- * quedó "…desde mi teléfono, sin [pausa] formulario".
- */
-const MARGEN_MAX = 0.2;
-
 /** Entrada y salida suaves. Sin esto, un corte a hueso chasquea. */
 const FUNDIDO = 0.02;
 
@@ -59,67 +58,120 @@ const FUNDIDO = 0.02;
  * `-ss` va ANTES de `-i`, y no después.
  *
  * Después de `-i` es un descarte de salida: ffmpeg decodifica el fichero
- * entero, pasa TODO por los filtros, y solo al final tira lo que sobra. El
+ * entero, pasa TODO por los filtros y solo al final tira lo que sobra. El
  * filtro nunca ve un trozo que empiece en cero, así que un `afade` de salida
  * programado en el segundo 4 del recorte caía en el segundo 4 del original
  * —antes del recorte— y lo apagaba entero. El montaje salió con 56 segundos
  * de silencio en medio.
- *
- * Antes de `-i` es una búsqueda de entrada: solo se decodifica el tramo
- * pedido y el reloj empieza en cero, que es lo que espera `afade`.
  */
 function recorte(archivo: string, desde: number, dur: number): string[] {
   return ['-ss', desde.toFixed(3), '-i', archivo, '-t', dur.toFixed(3)];
 }
 
+/**
+ * Los sucesos de la grabación, en segundos, medidos con detección de cambios
+ * sobre el vídeo. Son el esqueleto al que se ajusta la narración.
+ */
+const VIDEO_SUCESOS = {
+  notaUno: 11.8,
+  respuestaUno: 34.8,
+  refrescoUno: 46.6,
+  notaDos: 57.2,
+  respuestaDos: 69.0,
+  refrescoDos: 76.2,
+  fin: 84.9,
+};
+
 interface Bloque {
+  desde: number;
   hasta: number;
-  hueco: number;
-  pausa: number;
+  /** Cuándo debe EMPEZAR el bloque siguiente, en tiempo de vídeo. */
+  siguienteEn: number | null;
   que: string;
 }
 
+/**
+ * Los bloques hablados, recortados de la toma larga.
+ *
+ * Los saltos entre `hasta` y el `desde` del siguiente son las dos frases
+ * cortadas: 34.21→37.13 es "menos de diez segundos", 41.77→43.93 es
+ * "cuatro palabras".
+ */
 const BLOQUES: Bloque[] = [
-  { hasta: 15.79, hueco: 0.03, pausa: 3, que: 'presentación — "…desde mi teléfono"' },
-  { hasta: 20.29, hueco: 0.99, pausa: 5, que: 'sin formulario — "…marque uno para citas"' },
-  { hasta: 36.89, hueco: 0.24, pausa: 3, que: 'qué hizo — "…menos de diez segundos"' },
-  { hasta: 41.29, hueco: 0.68, pausa: 5, que: 'ahí está — "…lo interesante es lo siguiente"' },
-  { hasta: 48.51, hueco: 1.88, pausa: 5, que: 'cuatro palabras — "…de qué cita hablo"' },
+  {
+    desde: 0,
+    hasta: 15.81,
+    // No cuelga de ningún suceso: la nota ya apareció mientras hablaba. Se
+    // fija a mano para repartir la espera hasta la respuesta en dos silencios
+    // de seis segundos en vez de uno de once, que se hace eterno.
+    siguienteEn: 23.5,
+    que: 'presentación — "…desde mi teléfono"',
+  },
+  {
+    desde: 15.81,
+    hasta: 20.49,
+    siguienteEn: VIDEO_SUCESOS.respuestaUno,
+    que: 'sin formulario — "…marque uno para la cita"',
+  },
+  {
+    desde: 20.49,
+    hasta: 34.21,
+    siguienteEn: null, // se calcula: entra tras el refresco
+    que: 'qué hizo — "…agendó la cita"   [cortado: "menos de diez segundos"]',
+  },
+  {
+    desde: 37.13,
+    hasta: 41.77,
+    siguienteEn: VIDEO_SUCESOS.notaDos,
+    que: 'ahí está — "…lo interesante es lo siguiente"   [cortado: "cuatro palabras"]',
+  },
+  {
+    desde: 43.93,
+    hasta: 48.71,
+    siguienteEn: VIDEO_SUCESOS.respuestaDos,
+    que: 'no repito — "…de qué cita hablo"',
+  },
 ];
 
 /** El bloque final regrabado, sin el silencio de los bordes. */
 const FINAL_DESDE = 1.9;
 const FINAL_HASTA = 21.0;
 
-const piezas: string[] = [];
+/**
+ * Arranca con un poco de aire.
+ *
+ * Sin esto, la narración empieza en el fotograma cero y la primera pausa se
+ * come once segundos esperando a la respuesta. Retrasar la entrada reparte
+ * ese silencio en dos sitios donde no molesta.
+ */
+const ENTRADA = 2.0;
 
 // --- Ruido de sala ---------------------------------------------------------
-// Los dos primeros segundos de la toma final son el cuarto en silencio: es
-// el mismo suelo de ruido que el resto. Insertar silencio digital puro entre
+// Los dos primeros segundos de la toma final son el cuarto en silencio: el
+// mismo suelo de ruido que el resto. Insertar silencio digital puro entre
 // dos trozos con ruido de sala suena a corte de señal.
 const TONO = path.join(TMP, 'tono.wav');
 ff([...recorte(TOMA_FINAL, 0.2, 1.4), '-ac', '1', '-ar', '48000', TONO]);
 
-function pausa(segundos: number, i: number): string {
-  const out = path.join(TMP, `pausa-${i}.wav`);
-  // Se repite el trozo de ruido de sala hasta cubrir la pausa.
-  ff(['-stream_loop', '-1', '-i', TONO, '-t', String(segundos), '-ac', '1', '-ar', '48000', out]);
+let n = 0;
+function pausa(segundos: number): string {
+  const out = path.join(TMP, `pausa-${n++}.wav`);
+  ff(['-stream_loop', '-1', '-i', TONO, '-t', segundos.toFixed(3), '-ac', '1', '-ar', '48000', out]);
   return out;
 }
 
-// --- Bloques hablados ------------------------------------------------------
-let desde = 0;
+// --- Montaje ---------------------------------------------------------------
+const piezas: string[] = [pausa(ENTRADA)];
+let reloj = ENTRADA; // dónde vamos en el tiempo del vídeo
+
+console.log(`\n  ${ENTRADA.toFixed(1).padStart(5)}s  ⏸ entrada\n`);
 
 BLOQUES.forEach((b, i) => {
-  // Nunca más allá del 70 % del hueco: deja aire antes de la palabra
-  // siguiente aunque el transcriptor se haya desviado un poco.
-  const margen = Math.min(MARGEN_MAX, b.hueco * 0.7);
-  const hasta = b.hasta + margen;
-  const dur = hasta - desde;
+  const dur = b.hasta - b.desde;
   const out = path.join(TMP, `bloque-${i}.wav`);
 
   ff([
-    ...recorte(TOMA_LARGA, desde, dur),
+    ...recorte(TOMA_LARGA, b.desde, dur),
     '-af',
     `afade=t=in:st=0:d=${FUNDIDO},` +
       `afade=t=out:st=${(dur - FUNDIDO).toFixed(3)}:d=${FUNDIDO}`,
@@ -127,14 +179,19 @@ BLOQUES.forEach((b, i) => {
     out,
   ]);
 
-  piezas.push(out, pausa(b.pausa, i));
-  console.log(
-    `  ${dur.toFixed(1).padStart(5)}s  ${b.que}` +
-      `   (margen ${margen.toFixed(2)}s)\n` +
-      `  ${String(b.pausa).padStart(5)}s  ⏸`,
-  );
+  piezas.push(out);
+  console.log(`  ${dur.toFixed(1).padStart(5)}s  ${b.que}`);
+  reloj += dur;
 
-  desde = hasta;
+  // El siguiente bloque entra cuando toca según el vídeo. Si ya vamos tarde
+  // —el bloque anterior se alargó más allá del suceso— se deja un respiro
+  // mínimo en vez de un salto negativo.
+  const objetivo = b.siguienteEn ?? reloj + 1.5;
+  const espera = Math.max(1.2, objetivo - reloj);
+
+  piezas.push(pausa(espera));
+  console.log(`  ${espera.toFixed(1).padStart(5)}s  ⏸`);
+  reloj += espera;
 });
 
 // --- El final regrabado ----------------------------------------------------
@@ -149,14 +206,15 @@ ff([
   final,
 ]);
 piezas.push(final);
-console.log(`  ${(FINAL_HASTA - FINAL_DESDE).toFixed(1).padStart(5)}s  cierre (toma nueva)`);
+reloj += durFinal;
+console.log(`  ${durFinal.toFixed(1).padStart(5)}s  cierre (toma nueva)`);
 
 // --- Unir y nivelar --------------------------------------------------------
 const lista = path.join(TMP, 'lista.txt');
 writeFileSync(lista, piezas.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n'), 'utf8');
 
-// El mismo loudnorm que usa el montaje del vídeo, para que este audio suene
-// igual que los otros cinco.
+// El mismo loudnorm que usa el montaje del vídeo, para que suene igual que
+// los otros cinco audios.
 ff([
   '-f', 'concat', '-safe', '0', '-i', lista,
   '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11',
@@ -164,14 +222,22 @@ ff([
   SALIDA,
 ]);
 
-const dur = execFileSync('ffprobe', [
-  '-v', 'error', '-show_entries', 'format=duration',
-  '-of', 'default=noprint_wrappers=1:nokey=1', SALIDA,
-], { encoding: 'utf8' }).trim();
+const dur = Number(
+  execFileSync('ffprobe', [
+    '-v', 'error', '-show_entries', 'format=duration',
+    '-of', 'default=noprint_wrappers=1:nokey=1', SALIDA,
+  ], { encoding: 'utf8' }).trim(),
+);
 
 rmSync(TMP, { recursive: true, force: true });
 
 console.log(`\n  ${SALIDA}`);
-console.log(`  ${Number(dur).toFixed(1)}s\n`);
-console.log('  Compruébalo con:');
-console.log(`    npx tsx scripts/revisar-narracion.mts "${SALIDA}"\n`);
+console.log(`  audio ${dur.toFixed(1)}s · vídeo ${VIDEO_SUCESOS.fin}s`);
+
+const sobra = dur - VIDEO_SUCESOS.fin;
+if (sobra > 0.5) {
+  console.log(`  el audio dura ${sobra.toFixed(1)}s más: el montaje congela el último fotograma`);
+} else if (sobra < -0.5) {
+  console.log(`  el vídeo dura ${(-sobra).toFixed(1)}s más: sobra cola al final`);
+}
+console.log('');

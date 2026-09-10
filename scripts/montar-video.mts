@@ -28,9 +28,18 @@ function duracion(archivo: string): number {
   return parseFloat(out);
 }
 
-/** Parámetros idénticos en todos los segmentos: si no, el concat falla. */
+/**
+ * Parámetros idénticos en todos los segmentos: si no, el concat falla.
+ *
+ * 1080p y no 720p porque el demo enseña el panel de un negocio con texto
+ * pequeño, y bajarlo a 720 lo dejaba en el límite de lo legible. Los
+ * carteles son de 2560×1440, así que no pierden nada al subir.
+ */
+const ANCHO = 1920;
+const ALTO = 1080;
+
 const V = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
-           '-pix_fmt', 'yuv420p', '-r', '30', '-s', '1280x720'];
+           '-pix_fmt', 'yuv420p', '-r', '30', '-s', `${ANCHO}x${ALTO}`];
 const A = ['-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2'];
 /** Normaliza el volumen: las seis tomas tienen niveles ligeramente distintos. */
 const NORM = 'loudnorm=I=-16:TP=-1.5:LRA=11';
@@ -41,14 +50,19 @@ interface Segmento {
   /** Imágenes con su reparto de tiempo. Si es un video, va en `video`. */
   imagenes?: string[];
   video?: string;
+  /** Píxeles a quitar de abajo. La grabación de pantalla deja asomar el
+   *  fondo de escritorio bajo la ventana del navegador. */
+  recortarAbajo?: number;
 }
 
 const SEGMENTOS: Segmento[] = [
   { nombre: '1-gancho',   audio: 'DEMO-jueves-tarde.ogg', imagenes: ['c1-titulo.png'] },
   { nombre: '2-intro',    audio: 'Audio1.ogg',  imagenes: ['c1-titulo.png', 'c2-problema.png'] },
   { nombre: '3-problema', audio: 'Audio2.ogg',  imagenes: ['c2-problema.png'] },
-  // v2: corrige "99%" por el 100% que marca la transcripción real.
-  { nombre: '4-demo',     audio: 'Audio3v2.ogg', video: 'demo.webm' },
+  // v2: WhatsApp real a la izquierda y el panel a la derecha, en una toma.
+  // El audio va ajustado a los tiempos de esta grabación en concreto — si se
+  // vuelve a grabar el demo, hay que rehacerlo con montar-audio3.mts.
+  { nombre: '4-demo', audio: 'Audio3v3.ogg', video: 'demo-v2.mp4', recortarAbajo: 20 },
   { nombre: '5-como',     audio: 'Audio4.ogg',  imagenes: ['c3-pipeline.png', 'c4-regla.png'] },
   { nombre: '6-paises',   audio: 'Audio5.ogg',  imagenes: ['c5-paises.png', 'panel-ve.png', 'panel-br.png'] },
   { nombre: '7-cierre',   audio: 'Audio6.ogg',  imagenes: ['c6-cierre.png'] },
@@ -72,10 +86,20 @@ for (const seg of SEGMENTOS) {
     // El demo dura menos que la narración: se congela el último fotograma.
     const src = path.join(MAT, seg.video);
     const relleno = Math.max(0, dur - duracion(src));
+
+    // La grabación no es 16:9. Se ajusta por el lado que quepa y se rellena
+    // con negro; estirarla a 1920x1080 deformaría el panel y las caras de
+    // WhatsApp, que es de las cosas que más delatan un montaje descuidado.
+    const recorte = seg.recortarAbajo
+      ? `crop=iw:ih-${seg.recortarAbajo}:0:0,`
+      : '';
+
     ff([
       '-i', src, '-i', audio,
       '-filter_complex',
-      `[0:v]tpad=stop_mode=clone:stop_duration=${relleno.toFixed(2)},fps=30,scale=1280:720[v];` +
+      `[0:v]${recorte}tpad=stop_mode=clone:stop_duration=${relleno.toFixed(2)},fps=30,` +
+        `scale=${ANCHO}:${ALTO}:force_original_aspect_ratio=decrease,` +
+        `pad=${ANCHO}:${ALTO}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v];` +
       `[1:a]${NORM}[a]`,
       '-map', '[v]', '-map', '[a]', '-t', dur.toFixed(2),
       ...V, ...A, salida,
@@ -90,8 +114,8 @@ for (const seg of SEGMENTOS) {
     imgs.forEach((img, i) => {
       entradas.push('-loop', '1', '-t', trozo.toFixed(2), '-i', path.join(MAT, img));
       filtros.push(
-        `[${i}:v]scale=1280:720:force_original_aspect_ratio=decrease,` +
-        `pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,fps=30,setsar=1[v${i}]`,
+        `[${i}:v]scale=${ANCHO}:${ALTO}:force_original_aspect_ratio=decrease,` +
+        `pad=${ANCHO}:${ALTO}:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,fps=30,setsar=1[v${i}]`,
       );
     });
 
