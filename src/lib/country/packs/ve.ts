@@ -62,6 +62,8 @@ export const VE_PACK: CountryPack = {
   personalIdKind: 'Cédula',
   phonePrefix: '+58',
   speechLanguage: 'es',
+  speechModels: ['universal-3-5-pro', 'universal-2'],
+  llmModel: 'qwen3.5-4b-32k-fast',
   samplePhone: '0414-1234567',
 
   validateTaxId: validateRif,

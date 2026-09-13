@@ -17,6 +17,11 @@ Puntos que ya nos mordieron una vez:
   en `keyterms_prompt`, nunca dentro del prompt.
 - No usar `auto_chapters`, `summarization`, `summary_model`, `summary_type`
   (obsoletos) ni LeMUR (retirado). Para resúmenes: LLM Gateway.
+- `language_detection: true` y `language_code` son **mutuamente excluyentes**
+  (pre-grabado): pasar los dos a la vez es un error de la API. El idioma del
+  cliente no se fuerza desde el país del tenant — se detecta con
+  `language_detection_options` (`expected_languages`, `fallback_language`,
+  `code_switching`, `on_low_language_confidence`).
 
 ## Las dos invariantes del código
 

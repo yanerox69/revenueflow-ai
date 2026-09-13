@@ -48,7 +48,7 @@ export class AssemblyAITranscriber implements Transcriber {
 
     const params: Record<string, unknown> = {
       audio,
-      speech_models: SPEECH_MODELS,
+      speech_models: req.speechModels ?? SPEECH_MODELS,
       punctuate: true,
       format_text: true,
 

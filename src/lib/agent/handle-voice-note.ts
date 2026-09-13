@@ -32,6 +32,7 @@ export type AgentOutcome =
   | { kind: 'CANCELLED'; appointmentId: string; serviceName: string }
   | { kind: 'NO_APPOINTMENT' }
   | { kind: 'NO_AVAILABILITY'; serviceName: string }
+  | { kind: 'ASK_SERVICE'; services: string[] }
   | { kind: 'NEEDS_HUMAN'; reason: string }
   | { kind: 'NO_ACTION'; reason: string };
 
@@ -122,6 +123,7 @@ export async function handleVoiceNote(
     citaVigente: vigente
       ? { servicio: vigente.servicio, cuando: vigente.label }
       : null,
+    model: pack.llmModel,
   });
 
   options.onIntent?.(intent);
@@ -299,7 +301,15 @@ async function decide(
 
   const service = catalog.find((s) => s.id === intent.service_id);
   if (!service) {
-    return { kind: 'NEEDS_HUMAN', reason: 'No se identificó el servicio solicitado.' };
+    // Si el modelo alucinó un id o un nombre que no calzó con nada,
+    // sanitizeIntent ya forzó needs_human y esta rama no se alcanza. Llegar
+    // aquí es el cliente diciendo honestamente "quiero una cita" sin decir
+    // cuál: se le repregunta en vez de escalarlo, porque es una pregunta que
+    // el propio agente puede resolver.
+    if (!catalog.length) {
+      return { kind: 'NEEDS_HUMAN', reason: 'El negocio no tiene servicios cargados.' };
+    }
+    return { kind: 'ASK_SERVICE', services: catalog.map((s) => s.name) };
   }
 
   const slot = await findFirstFreeSlot(db, tenantId, pack, intent, service.duration_minutes, now);

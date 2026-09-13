@@ -23,6 +23,7 @@ type Outcome =
   | { kind: 'CANCELLED'; serviceName: string }
   | { kind: 'NO_APPOINTMENT' }
   | { kind: 'NO_AVAILABILITY'; serviceName: string }
+  | { kind: 'ASK_SERVICE'; services: string[] }
   | { kind: 'NEEDS_HUMAN'; reason: string }
   | { kind: 'NO_ACTION'; reason: string };
 
@@ -431,6 +432,10 @@ function AgentOutcome({ agent }: { agent: Agent }) {
       'serviceName' in outcome ? outcome.serviceName : 'ese servicio'
     } en las próximas dos semanas.`,
     NO_APPOINTMENT: 'Este cliente no tiene ninguna cita pendiente.',
+    ASK_SERVICE:
+      'services' in outcome
+        ? `Se le repreguntó cuál servicio quiere: ${outcome.services.join(', ')}.`
+        : 'Se le repreguntó cuál servicio quiere.',
     NEEDS_HUMAN: 'reason' in outcome ? outcome.reason : 'Requiere atención humana.',
     NO_ACTION: 'reason' in outcome ? outcome.reason : 'Sin acción automática.',
   };

@@ -335,6 +335,22 @@ describe('Test 17 · La confirmación al cliente no la escribe el modelo', () =>
     expect(ve.startsWith('¡Listo!')).toBe(true);
     expect(br.startsWith('Beleza!')).toBe(true);
   });
+
+  it('repregunta el servicio en vez de escalar cuando el cliente no dijo cuál', () => {
+    const outcome = {
+      kind: 'ASK_SERVICE' as const,
+      services: ['Limpieza dental', 'Blanqueamiento'],
+    };
+
+    const ve = composeReply(outcome, getPack('VE'));
+    expect(ve).toContain('Limpieza dental');
+    expect(ve).toContain('Blanqueamiento');
+    expect(ve).toMatch(/cuál/i);
+
+    const br = composeReply(outcome, getPack('BR'));
+    expect(br).toContain('Limpieza dental');
+    expect(br).toMatch(/qual/i);
+  });
 });
 
 describe('Test 16 · La petición al LLM Gateway', () => {

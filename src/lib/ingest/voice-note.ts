@@ -245,6 +245,7 @@ export async function ingestVoiceNote(
       audio: note.audio,
       fallbackLanguage: pack.speechLanguage,
       expectedLanguages: idiomasEsperados(pack),
+      speechModels: pack.speechModels,
       contentType: note.contentType,
       prompt: context.prompt,
       keyterms: context.keyterms,

@@ -75,4 +75,12 @@ describe('Registro de packs', () => {
   it('falla con un país desconocido en vez de devolver undefined', () => {
     expect(() => getPack('XX')).toThrow(UnknownCountryError);
   });
+
+  it('cada pack trae su propio modelo de audio y de texto', () => {
+    for (const code of listCountryCodes()) {
+      const pack = getPack(code);
+      expect(pack.speechModels.length).toBeGreaterThan(0);
+      expect(pack.llmModel.length).toBeGreaterThan(0);
+    }
+  });
 });

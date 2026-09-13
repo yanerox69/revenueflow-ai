@@ -17,6 +17,11 @@ export interface TranscriptionRequest {
   fallbackLanguage: string;
   /** Idiomas que es razonable esperar. Guía la detección sin cerrarla. */
   expectedLanguages?: string[];
+  /**
+   * Lista ORDENADA de respaldo para `speech_models`. La aporta el CountryPack
+   * del tenant. Si se omite, el adaptador usa su propio default.
+   */
+  speechModels?: readonly string[];
   contentType?: string;
   /** Descripción en prosa de la escena. Sube bastante la precisión. */
   prompt?: string;

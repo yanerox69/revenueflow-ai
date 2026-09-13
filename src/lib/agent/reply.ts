@@ -162,6 +162,18 @@ export function composeReply(
           return 'No encontré ninguna cita tuya. ¿Quieres que agende una?';
       }
 
+    case 'ASK_SERVICE': {
+      const lista = outcome.services.join(', ');
+      switch (idioma) {
+        case 'pt':
+          return `Claro! Qual desses serviços você gostaria de agendar? ${lista}.`;
+        case 'en':
+          return `Sure, which of these services would you like to book? ${lista}.`;
+        default:
+          return `Claro, ¿cuál de estos servicios te gustaría agendar? ${lista}.`;
+      }
+    }
+
     case 'NEEDS_HUMAN':
     case 'NO_ACTION':
       switch (idioma) {
